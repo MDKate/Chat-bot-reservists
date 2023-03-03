@@ -5,10 +5,15 @@ from telebot.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeybo
 import pandas as pd
 import numpy as np
 import emoji
-
+import telebot
+from time import sleep
+from multiprocessing.context import Process
+from datetime import timedelta
+import schedule
 from pathlib import Path
 from telegram import ParseMode
 import datetime
+from datetime import datetime
 
 from emoji import emojize
 
@@ -16,16 +21,51 @@ from emoji import emojize
 bot = telebot.TeleBot('5958215181:AAFSaPDPJr9JFxtT3UWkO_WWFxTQMEQ2DE8')
 
 
-# page = 1
-# count = 10
-#
-#
-# Определяем отклик
-# @bot.callback_query_handler(func=lambda call: True)
-# def callback_query(call):
-#     req = call.data.split('_')
 
 
+# --------------------------------------------Отправка видео по дате------------------------------------------------------
+# ------------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------------------------------------
+# Создаем обработчик, который отправляет видео в заданное время
+def job():
+    # Подгружаем базу
+    base = pd.read_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+    del (base['Unnamed: 0'])
+    # Работа по отправке видео. Если текущая дата совпадает с датой из таблицы, то
+    if datetime.today().strftime('%Y-%m-%d %H:%M') == base['Дата'][1]:
+        # Перебираем всех НЕ преподавателей и отправляем им видео
+        for i in range(1, len(base)):
+            if base['Участники курса'][i] != 'Преподаватель':
+                bot.send_message(int(base['ID'][i]), f'Посмотрите видео и пройдите тест. \n {base["Видео"][1]}', parse_mode=ParseMode.HTML)
+    # Работа по отправке теста. Определяем время отправки теста, с учетом длительности видео
+    mint = datetime.strptime(str(base['Дата'][1]), '%Y-%m-%d %H:%M')+ timedelta(minutes=int(base['Продолжительность (мин)'][1]))
+    # Если текущие дата, время совпадает с расчетной отправкой теста, то
+    if datetime.today().strftime('%Y-%m-%d %H:%M') == mint.strftime('%Y-%m-%d %H:%M'):
+        # Перебираем всех НЕ преподавателей и высылаем кнопку на прохождение теста
+        for i in range(1, len(base)):
+            if base['Участники курса'][i] != 'Преподаватель':
+                markup = telebot.types.InlineKeyboardMarkup()
+                markup.add(telebot.types.InlineKeyboardButton(text='Пройти тест', callback_data='testr'))
+                bot.send_message(int(base['ID'][i]), text=f"Для начала тестирования нажмите на кнопку: ", reply_markup=markup)
+    base=""
+
+# Контроллер, который выполняет работу каждую минуту
+schedule.every(1).minutes.do(job)
+
+# Выделение потока под контроллер
+class ScheduleMessage():
+    def try_send_schedule():
+        while True:
+            schedule.run_pending()
+            sleep(1)
+    def start_process():
+        p1 = Process(target=ScheduleMessage.try_send_schedule, args=())
+        p1.start()
+
+# ------------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------------------------------------
 
 
 
@@ -45,11 +85,13 @@ def start_message(message):
             "Добрый день!:hand_with_fingers_splayed: Давайте начнем учиться! Для этого вы должны зарегистрироваться."))
         bot.send_message(message.chat.id,
                          emoji.emojize("Введите ваши фамилию, имя и отчество: :magnifying_glass_tilted_left:"))
-
+    base = ""
 
 # Обработка входящего текста
 @bot.message_handler(func=lambda message: ['test'])
-def start_message(message):
+
+
+def next_message(message):
     # Считываем таблицу
     base = pd.read_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
     del (base['Unnamed: 0'])
@@ -59,11 +101,17 @@ def start_message(message):
                 "Увы! :weary_face: Извините! Я еще плохо умею общаться 	:woman_facepalming:"))
     # Если пользователь еще не зарегистрирован, то
     else:
+        # Проверяем, зарегистрировал ли человек имя и, если да, то определяем, где его строчка в таблице
+        for i in range(0, len(base)):
+            if message.chat.id == base['ID'][i]:
+                global idM
+                idM = i
+            else: idM=0
         # Если пользователь ввел имя и группу, то
-        if len(str(base['Группа'][base.index[-1]])) == 3 and len(str(base['Участники курса'][base.index[-1]])) > 3:
+        if len(str(base['Группа'][idM])) == 3 and len(str(base['Участники курса'][idM])) > 3:
             # Дозаписываем данные и сохраняем таблицу
             group = message.text
-            base['Группа'][base.index[-1]] = group
+            base['Группа'][idM] = group
             base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
             bot.send_message(message.chat.id, 'Отлично! Давайте приступим к работе!' )
             bot.send_message(message.chat.id, 'Для начала, необходимо ознакомиться с некоторыми правилами. \n У вас есть несколько учебных блоков, '
@@ -82,48 +130,37 @@ def start_message(message):
             markup.add(telebot.types.InlineKeyboardButton(text='Преподаватель', callback_data='but1'))
             markup.add(telebot.types.InlineKeyboardButton(text='Ученик', callback_data='but2'))
             bot.send_message(message.chat.id, text=f"Выберите вашу роль: " , reply_markup=markup)
-
+    base = ""
 
 # Обработка кнопок
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
     req = call.data.split('_')
+    # Считываем таблицу
+    base = pd.read_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+    del (base['Unnamed: 0'])
     # Если выбранная группа - ученик, то
     if req[0] == 'but2':
         bot.send_message(call.message.chat.id, 'Введите вашу группу:')
+    # Если нажата кнопка прохождения теста
+    elif req[0] == 'testr':
+        # Ищем человека в базе и, в его строку, вносим пометку о просмотре видео
+        for i in range(1, len(base)):
+            if call.message.chat.id == base['ID'][i]:
+                base['Отметка о просмотре'][i] = 'Пройдено'
+        base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+        bot.send_message(call.message.chat.id, 'Тестик')
+
     # Если выбранная группа - преподаватель, то
     else:
-        # Считываем таблицу
-        base = pd.read_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
         base['Группа'][base.index[-1]] = 'Преподаватель'
-        del (base['Unnamed: 0'])
         base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
         bot.send_message(call.message.chat.id, 'Отлично! Давайте приступим к работе!')
         bot.send_message(call.message.chat.id, 'По мере прохождения учебного блока, я буду писать вам о том, кто из учеников уже ознакомился с видео, кто и на какой балл прошел тест,'
                                                'пересылать домашнее задание учеников. В любое время вы можете написать мне, и я передам сообщение всем ученикам персонально. '
                                                'Для этого воспользуйтесь тегом /message Укажате номер группы, которой нужно отправить сообщение, и текст сообщения. \n '
                                                'Желаю плодотворной работы!')
-
-
-
-
-        # @bot.message_handler(content_types=['text'])
-            # def message_input_step(message):
-
-
-    # @bot.message_handler(content_types=['text'])
-    # def return_text(message):
-    #     name = message.text
-    #     bot.send_message(message.chat.id, 'Выберите вашу роль:')
-
-
-
-
-# buttons = types.InlineKeyboardMarkup(row_width=2)
-#     button1 = types.InlineKeyboardButton('Преподаватель', callback_data='but1')
-#     button2 = types.InlineKeyboardButton('Ученик', callback_data='but2')
-#     buttons.add(button1, button2)
-#     bot.send_message(message.chat.id, text='Выберите вашу роль: ', reply_markup=buttons)
+    base = ""
 
 
 
@@ -131,44 +168,16 @@ def callback_query(call):
 
 
 
-        # ------------------------------------------------------------------------------------------------------------------------------------------------------
-    # --------------------------------------------------------------Начало работы----------------------------------------------------------------------------------------
-    # ------------------------------------------------------------------------------------------------------------------------------------------------------
-    # if req[0] == 'start':  # Если метка start
-    #     ChoosingTopicsResult = ChoosingTopics(tree)  # Вызываем функцию
-    #     markup = InlineKeyboardMarkup()  # Определяем кнопку
-    #     for i in range(0, len(ChoosingTopicsResult), 2):  # Бежим по списку, вовзвращенному функцией
-    #         markup.add(InlineKeyboardButton(text=ChoosingTopicsResult[i],
-    #                                         callback_data=str(int(i / 2))))  # Создаем соответствующие кнопки
-    #     bot.edit_message_text(emoji.emojize(f"Выберите раздел: :magnifying_glass_tilted_left: "), reply_markup=markup,
-    #                           chat_id=call.message.chat.id,
-    #                           message_id=call.message.message_id)  # Выводим сопутствующее сообщение
-    #     page = 0
-    #     count = 0
-    # # ------------------------------------------------------------------------------------------------------------------------------------------------------
-    # # --------------------------------------------------------------Ветка чат для общения----------------------------------------------------------------------------------------
-    # # ------------------------------------------------------------------------------------------------------------------------------------------------------
-    # elif req[0] == '5':  # Если метка 5
-    #     ChoosingTopicsResult = ChoosingTopics(tree)
-    #     firstResult, endSlinding = FirstLevel(tree, ChoosingTopicsResult[int(req[0]) * 2],
-    #                                           ChoosingTopicsResult)  # Вызываем функцию
-    #     markup = InlineKeyboardMarkup()  # Определяем кнопку
-    #     markup.add(InlineKeyboardButton(text=firstResult[0], url='https://vk.com/'))  # Создаем соответствующие кнопки
-    #     markup.add(InlineKeyboardButton(text='Вернуться на главную',
-    #                                     callback_data='start'))  # Создаем кнопку возврата на главную страницу
-    #     bot.edit_message_text(emoji.emojize(f"А вот и ссылочка на чат для общения) 	:smiling_face_with_heart-eyes:"),
-    #                           reply_markup=markup, chat_id=call.message.chat.id,
-    #                           message_id=call.message.message_id)  # Выводим сопутствующее сообщение
-
-# Обработчик входящих сообщений
 
 
 
-# @bot.message_handler()  # Обрабатываем текстовые сообщения
-# def start(m):
-#     bot.send_message(m.from_user.id, emoji.emojize(
-#         "Увы! :weary_face: Извините! Я еще плохо умею общаться 	:woman_facepalming:"))  # Выводим сопутствующее сообщение
+
+
+
+
+
+
 
 if __name__ == '__main__':
-
+    ScheduleMessage.start_process()
     bot.polling(none_stop=True)
