@@ -18,12 +18,6 @@ from datetime import datetime
 from emoji import emojize
 
 
-
-def appendDictToDF(df,dictToAppend):
-  df = pd.concat([df, pd.DataFrame.from_records([dictToAppend])])
-  return df
-
-
 # Подключаемся к боту
 bot = telebot.TeleBot('5958215181:AAFSaPDPJr9JFxtT3UWkO_WWFxTQMEQ2DE8')
 
@@ -34,19 +28,19 @@ bot = telebot.TeleBot('5958215181:AAFSaPDPJr9JFxtT3UWkO_WWFxTQMEQ2DE8')
 # ------------------------------------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------------------------------
-Создаем обработчик, который отправляет видео в заданное время
+# Создаем обработчик, который отправляет видео в заданное время
 def job():
     # Подгружаем базу
     base = pd.read_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
     del (base['Unnamed: 0'])
     # Работа по отправке видео. Если текущая дата совпадает с датой из таблицы, то
-    if datetime.today().strftime('%Y-%m-%d %H:%M') == base['Дата'][1]:
+    if datetime.today().strftime('%Y-%m-%d %H:%M') == base['Дата'][0]:
         # Перебираем всех НЕ преподавателей и отправляем им видео
         for i in range(1, len(base)):
             if base['Участники курса'][i] != 'Преподаватель':
-                bot.send_message(int(base['ID'][i]), f'Посмотрите видео и пройдите тест. \n {base["Видео"][1]}', parse_mode=ParseMode.HTML)
+                bot.send_message(int(base['ID'][i]), f'Посмотрите видео и пройдите тест. \n {base["Видео"][0]}', parse_mode=ParseMode.HTML)
     # Работа по отправке теста. Определяем время отправки теста, с учетом длительности видео
-    mint = datetime.strptime(str(base['Дата'][1]), '%Y-%m-%d %H:%M')+ timedelta(minutes=int(base['Продолжительность (мин)'][1]))
+    mint = datetime.strptime(str(base['Дата'][0]), '%Y-%m-%d %H:%M')+ timedelta(minutes=int(base['Продолжительность (мин)'][0]))
     # Если текущие дата, время совпадает с расчетной отправкой теста, то
     if datetime.today().strftime('%Y-%m-%d %H:%M') == mint.strftime('%Y-%m-%d %H:%M'):
         # Перебираем всех НЕ преподавателей и высылаем кнопку на прохождение теста
@@ -114,6 +108,7 @@ def next_message(message):
             if len(str(base['ID'][i])) > 3:
                 if str(message.chat.id) == str(int(base['ID'][i])):
                     idM = i
+                    # Если пользователь ввел имя и группу, то
                     if len(str(base['Группа'][idM])) == 3 and len(str(base['Участники курса'][idM])) > 3:
                         # Дозаписываем данные и сохраняем таблицу
                         group = message.text
@@ -130,9 +125,6 @@ def next_message(message):
                                          'Желаю успешной учебы!')
                 # else: idM=0
             else: idM=0
-        # Если пользователь ввел имя и группу, то
-
-
         # Если пользователь ввел имя, но не ввел группу, то
         if idM==0:
             # Дозаписываем данные и сохраняем таблицу
@@ -151,6 +143,7 @@ def next_message(message):
 # Обработка кнопок
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
+    global question
     req = call.data.split('_')
     # Считываем таблицу
     base = pd.read_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
@@ -164,8 +157,96 @@ def callback_query(call):
         for i in range(1, len(base)):
             if call.message.chat.id == base['ID'][i]:
                 base['Отметка о просмотре'][i] = 'Пройдено'
+                base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+                iDM=i
+        # Если человек пытается повторно пройти тест, то
+        if base['Итого баллов?'][iDM] >= 0:
+            bot.send_message(call.message.chat.id,
+                             text='Внимание! Без разрешения преподавателя проходить тест повторно запрещено!')
+        # Если человек первый раз проходит тест, то  выводим первый вопорос
+        else:
+            question = base['Тест 1'][0]
+            buttons = telebot.types.InlineKeyboardMarkup()
+            button1 = telebot.types.InlineKeyboardButton(text='1', callback_data='t1v1')
+            button2 = telebot.types.InlineKeyboardButton(text='2', callback_data='t1v2')
+            buttons.row(button1, button2)
+            button3 = telebot.types.InlineKeyboardButton(text='3', callback_data='t1v3')
+            button4 = telebot.types.InlineKeyboardButton(text='4', callback_data='t1v4')
+            buttons.row(button3, button4)
+            bot.send_message(call.message.chat.id, text=str(question), reply_markup=buttons)
+    # Если это ответ на первый вопрос, то
+    elif 't1' in req[0]:
+        # Задаем начальное число баллов, раное нулю
+        for i in range(1, len(base)):
+            if call.message.chat.id == base['ID'][i]:
+                iDM=i
+                base['Итого баллов?'][iDM] = 0
+        # Получаем ответ на вопрос
+        if req[0] == 't1v1': answer = "1"
+        if req[0] == 't1v2': answer = "2"
+        if req[0] == 't1v3': answer = "3"
+        if req[0] == 't1v4': answer = "4"
+        # Если ответ верен, то присваиваем балл
+        if str(base['Ответ 1'][0]) == answer: base['Итого баллов?'][iDM] += 1
         base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
-        bot.send_message(call.message.chat.id, 'Тестик')
+        # Создаем кнопки для второго вопроса
+        question = base['Тест 2'][0]
+        buttons = telebot.types.InlineKeyboardMarkup()
+        button1 = telebot.types.InlineKeyboardButton(text='1', callback_data='t2v1')
+        button2 = telebot.types.InlineKeyboardButton(text='2', callback_data='t2v2')
+        buttons.row(button1, button2)
+        button3 = telebot.types.InlineKeyboardButton(text='3', callback_data='t2v3')
+        button4 = telebot.types.InlineKeyboardButton(text='4', callback_data='t2v4')
+        buttons.row(button3, button4)
+        bot.send_message(call.message.chat.id, text=str(question), reply_markup=buttons)
+    # Если это ответ на второй вопрос, то
+    elif 't2' in req[0]:
+        for i in range(1, len(base)):
+            if call.message.chat.id == base['ID'][i]:
+                iDM=i
+        # Получаем ответ на вопрос
+        if req[0]=='t2v1': answer="1"
+        if req[0]=='t2v2': answer="2"
+        if req[0]=='t2v3': answer="3"
+        if req[0]=='t2v4': answer="4"
+        # Если ответ правильный, то присваиваем балл
+        if str(base['Ответ 2'][0]) == answer: base['Итого баллов?'][iDM] +=1
+        base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+        # Создаем третий вопрос
+        question = base['Тест 3'][0]
+        buttons = telebot.types.InlineKeyboardMarkup()
+        button1 = telebot.types.InlineKeyboardButton(text='1', callback_data='t3v1')
+        button2 = telebot.types.InlineKeyboardButton(text='2', callback_data='t3v2')
+        buttons.row(button1, button2)
+        button3 = telebot.types.InlineKeyboardButton(text='3', callback_data='t3v3')
+        button4 = telebot.types.InlineKeyboardButton(text='4', callback_data='t3v4')
+        buttons.row(button3, button4)
+        bot.send_message(call.message.chat.id, text=str(question), reply_markup=buttons)
+    # Если это ответ на третий вопрос, то
+    elif 't3' in req[0]:
+        for i in range(1, len(base)):
+            if call.message.chat.id == base['ID'][i]:
+                iDM=i
+        # Получаем ответ на вопрос
+        if req[0]=='t3v1': answer="1"
+        if req[0]=='t3v2': answer="2"
+        if req[0]=='t3v3': answer="3"
+        if req[0]=='t3v4': answer="4"
+        # Если ответ правильный, то присваиваем балл
+        if str(base['Ответ 3'][0]) == answer: base['Итого баллов?'][iDM] +=1
+        base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+        base = pd.read_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+        del (base['Unnamed: 0'])
+        # Если тест пройден, то
+        if int(float(base["Итого баллов?"][iDM])*100/3) > 50:
+            base['Отметка о прохождении теста'][iDM] = "Пройдено"
+            base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+            bot.send_message(call.message.chat.id, f'Вы сдали тест на :{int(float(base["Итого баллов?"][iDM])*100/3)}%. \n Теперь вы можете приступить к выполнению домашнего задания.')
+        # Если тест не пройден, то
+        else:
+            bot.send_message(call.message.chat.id,
+                             f'Вы не прошли тест. Обратитесь к преподавателю.')
+
 
     # Если выбранная группа - преподаватель, то
     else:
