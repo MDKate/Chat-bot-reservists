@@ -17,6 +17,13 @@ from datetime import datetime
 
 from emoji import emojize
 
+
+
+def appendDictToDF(df,dictToAppend):
+  df = pd.concat([df, pd.DataFrame.from_records([dictToAppend])])
+  return df
+
+
 # Подключаемся к боту
 bot = telebot.TeleBot('5958215181:AAFSaPDPJr9JFxtT3UWkO_WWFxTQMEQ2DE8')
 
@@ -27,7 +34,7 @@ bot = telebot.TeleBot('5958215181:AAFSaPDPJr9JFxtT3UWkO_WWFxTQMEQ2DE8')
 # ------------------------------------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------------------------------
-# Создаем обработчик, который отправляет видео в заданное время
+Создаем обработчик, который отправляет видео в заданное время
 def job():
     # Подгружаем базу
     base = pd.read_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
@@ -89,8 +96,6 @@ def start_message(message):
 
 # Обработка входящего текста
 @bot.message_handler(func=lambda message: ['test'])
-
-
 def next_message(message):
     # Считываем таблицу
     base = pd.read_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
@@ -101,35 +106,46 @@ def next_message(message):
                 "Увы! :weary_face: Извините! Я еще плохо умею общаться 	:woman_facepalming:"))
     # Если пользователь еще не зарегистрирован, то
     else:
+        sleep(1)
         # Проверяем, зарегистрировал ли человек имя и, если да, то определяем, где его строчка в таблице
+        base = pd.read_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+        del (base['Unnamed: 0'])
         for i in range(0, len(base)):
-            if message.chat.id == base['ID'][i]:
-                global idM
-                idM = i
+            if len(str(base['ID'][i])) > 3:
+                if str(message.chat.id) == str(int(base['ID'][i])):
+                    idM = i
+                    if len(str(base['Группа'][idM])) == 3 and len(str(base['Участники курса'][idM])) > 3:
+                        # Дозаписываем данные и сохраняем таблицу
+                        group = message.text
+                        base['Группа'][idM] = group
+                        # base.loc[:, ('Группа',idM) ] = group
+
+                        base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+                        bot.send_message(message.chat.id, 'Отлично! Давайте приступим к работе!')
+                        bot.send_message(message.chat.id,
+                                         'Для начала, необходимо ознакомиться с некоторыми правилами. \n У вас есть несколько учебных блоков, '
+                                         'к каждому из которых есть обязательное задание. Блок состоит из обучающего видео, проверочного теста и домашнего задания. \n '
+                                         'Выполняйте все задания в срок! \n Иногда вам будут приходить напоминания, что пора приступить к работе и сообщения от преподавателя. Если вы захотите '
+                                         'перезагрузить домашнюю работу - воспользуйтесть тегом /jobreload. Если вы захотите оставить рефлексию - воспользуйтесь тегом /reflection. \n'
+                                         'Желаю успешной учебы!')
+                # else: idM=0
             else: idM=0
         # Если пользователь ввел имя и группу, то
-        if len(str(base['Группа'][idM])) == 3 and len(str(base['Участники курса'][idM])) > 3:
-            # Дозаписываем данные и сохраняем таблицу
-            group = message.text
-            base['Группа'][idM] = group
-            base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
-            bot.send_message(message.chat.id, 'Отлично! Давайте приступим к работе!' )
-            bot.send_message(message.chat.id, 'Для начала, необходимо ознакомиться с некоторыми правилами. \n У вас есть несколько учебных блоков, '
-                                              'к каждому из которых есть обязательное задание. Блок состоит из обучающего видео, проверочного теста и домашнего задания. \n '
-                                              'Выполняйте все задания в срок! \n Иногда вам будут приходить напоминания, что пора приступить к работе и сообщения от преподавателя. Если вы захотите '
-                                              'перезагрузить домашнюю работу - воспользуйтесть тегом /jobreload. Если вы захотите оставить рефлексию - воспользуйтесь тегом /reflection. \n'
-                                              'Желаю успешной учебы!')
+
+
         # Если пользователь ввел имя, но не ввел группу, то
-        else:
+        if idM==0:
             # Дозаписываем данные и сохраняем таблицу
             name = message.text
             base = base.append({"Участники курса": name, "ID": message.chat.id}, ignore_index=True)
+            # base = appendDictToDF(base, {"Участники курса": name, "ID": message.chat.id})
             base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
             # Создаем кнопки
             markup = telebot.types.InlineKeyboardMarkup()
             markup.add(telebot.types.InlineKeyboardButton(text='Преподаватель', callback_data='but1'))
             markup.add(telebot.types.InlineKeyboardButton(text='Ученик', callback_data='but2'))
-            bot.send_message(message.chat.id, text=f"Выберите вашу роль: " , reply_markup=markup)
+            bot.send_message(message.chat.id, text=f"Выберите вашу роль: ", reply_markup=markup)
+
     base = ""
 
 # Обработка кнопок
@@ -180,4 +196,7 @@ def callback_query(call):
 
 if __name__ == '__main__':
     ScheduleMessage.start_process()
+    process = Process(target=next_message)
+    process.start()
+    process.join()
     bot.polling(none_stop=True)
