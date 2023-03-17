@@ -14,12 +14,13 @@ from pathlib import Path
 from telegram import ParseMode
 import datetime
 from datetime import datetime
+import urllib.request, urllib.parse, urllib.error
 
 from emoji import emojize
 
-
+token = '5958215181:AAFSaPDPJr9JFxtT3UWkO_WWFxTQMEQ2DE8'
 # Подключаемся к боту
-bot = telebot.TeleBot('5958215181:AAFSaPDPJr9JFxtT3UWkO_WWFxTQMEQ2DE8')
+bot = telebot.TeleBot(token)
 
 
 
@@ -49,6 +50,13 @@ def job():
                 markup = telebot.types.InlineKeyboardMarkup()
                 markup.add(telebot.types.InlineKeyboardButton(text='Пройти тест', callback_data='testr'))
                 bot.send_message(int(base['ID'][i]), text=f"Для начала тестирования нажмите на кнопку: ", reply_markup=markup)
+    # Отправка домашнего задания
+    if datetime.today().strftime('%Y-%m-%d %H:%M') == base['Дата домашнего задания'][0]:
+        # Перебираем всех НЕ преподавателей и отправляем им видео
+        for i in range(1, len(base)):
+            if base['Участники курса'][i] != 'Преподаватель':
+                bot.send_message(int(base['ID'][i]), text=f'Домашнее задание: \n {base["Домашнее задание"][0]}', parse_mode=ParseMode.HTML)
+                bot.send_message(int(base['ID'][i]), 'Для отправки домашнего задания боту - просто отправьте файл боту. Внимание! Файл должен иметь расширение docx! Если вы хотите перезаписать файл, то воспользуйтесь тегом /homework', parse_mode=ParseMode.HTML)
     base=""
 
 # Контроллер, который выполняет работу каждую минуту
@@ -68,6 +76,41 @@ class ScheduleMessage():
 # ------------------------------------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------------------------------
 
+
+# Если ученик хочет оставить рефлексию, то создаем кнопки
+@bot.message_handler(commands=['reflection'])
+def start_message(message):
+    buttons = telebot.types.InlineKeyboardMarkup()
+    button1 = telebot.types.InlineKeyboardButton(text='О качестве курса', callback_data='course')
+    button2 = telebot.types.InlineKeyboardButton(text='О способе коммуникации', callback_data='communic')
+    button3 = telebot.types.InlineKeyboardButton(text='Общее', callback_data='general')
+    buttons.row(button1, button2, button3)
+    bot.send_message(message.chat.id, text='О чем вы хотите написать отзыв?', reply_markup=buttons)
+
+
+
+
+# Если пользователь кидает файл, то ищем его id и сохраняем файл в папку с именем пользователя
+@bot.message_handler(content_types=["document"])
+def handle_docs_audio(message):
+    document_id = message.document.file_id
+    file_info = bot.get_file(document_id)
+    base = pd.read_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+    del (base['Unnamed: 0'])
+    for i in range(0, len(base)):
+        if len(str(base['ID'][i])) > 3:
+            if str(message.chat.id) == str(int(base['ID'][i])):
+                if len(str(base['Отметка об отправке ДЗ'][i])) <= 3:
+                    urllib.request.urlretrieve(f'http://api.telegram.org/file/bot{token}/{file_info.file_path}', f"C:/Users/50AdmNsk/Desktop/Doc/{str(base['Участники курса'][i]) + '.docx'}")
+                    base['Отметка об отправке ДЗ'][i] = 'Готово'
+                    base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+                    bot.send_message(message.chat.id,
+                                     "Работа отправлена преподавателю на проверку.")
+
+                else:
+                    bot.send_message(message.chat.id,
+                                     "Если вы хотите перезаписать файл, то воспользуйтесь тегом /homework")
+    base=""
 
 
 # Обработка действий при старте бота
@@ -94,9 +137,41 @@ def next_message(message):
     # Считываем таблицу
     base = pd.read_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
     del (base['Unnamed: 0'])
+    # Создаем переменную для контроля сообщения о незнании
+    global control
+    control = 0
+    # Бежим по всем колонкам рефлексии, и если где-то увидели пометку, то туда и записываем сообщение
+    for i in range(1, len(base)):
+        if message.chat.id == base['ID'][i]:
+            if len(str(base['Рефлексия о курсе'][i])) > 3:
+                if str(base['Рефлексия о курсе'][i])[-6:] == 'course':
+                    base['Рефлексия о курсе'][i] = base['Рефлексия о курсе'][i] + '[' + datetime.today().strftime(
+                        '%Y-%m-%d %H:%M') + '] ' + message.text
+                    control = 1
+                    base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+                    bot.send_message(message.chat.id, text=f"Спасибо за ваш отзыв!")
+            if len(str(base['Рефлексия о взаимодействии'][i])) > 3:
+                if str(base['Рефлексия о взаимодействии'][i][-8:]) == 'communic':
+                    base['Рефлексия о взаимодействии'][i] = base['Рефлексия о взаимодействии'][
+                                                                i] + '[' + datetime.today().strftime(
+                        '%Y-%m-%d %H:%M') + '] ' + message.text
+                    control = 1
+                    base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+                    bot.send_message(message.chat.id, text=f"Спасибо за ваш отзыв!")
+            if len(str(base['Рефлексия общее'][i])) > 3:
+                if str(base['Рефлексия общее'][i][-7:]) == 'general':
+                    base['Рефлексия общее'][i] = base['Рефлексия общее'][i] + str(
+                        '[' + str(datetime.today().strftime('%Y-%m-%d %H:%M')) + '] ' + message.text)
+                    base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+                    control = 1
+                    bot.send_message(message.chat.id, text=f"Спасибо за ваш отзыв!")
+
+
+
     # Если пользователь зарегистрировался и внес иформацию о своей группе, то
-    if message.chat.id in base['ID'].unique() and len(str(list(base[base['ID'] == message.chat.id]['Группа'])))-4 > 3:
-        bot.send_message(message.chat.id, emoji.emojize(
+    if control == 0:
+        if message.chat.id in base['ID'].unique() and len(str(list(base[base['ID'] == message.chat.id]['Группа'])))-4 > 3:
+            bot.send_message(message.chat.id, emoji.emojize(
                 "Увы! :weary_face: Извините! Я еще плохо умею общаться 	:woman_facepalming:"))
     # Если пользователь еще не зарегистрирован, то
     else:
@@ -137,6 +212,8 @@ def next_message(message):
             markup.add(telebot.types.InlineKeyboardButton(text='Преподаватель', callback_data='but1'))
             markup.add(telebot.types.InlineKeyboardButton(text='Ученик', callback_data='but2'))
             bot.send_message(message.chat.id, text=f"Выберите вашу роль: ", reply_markup=markup)
+
+
 
     base = ""
 
@@ -246,6 +323,27 @@ def callback_query(call):
         else:
             bot.send_message(call.message.chat.id,
                              f'Вы не прошли тест. Обратитесь к преподавателю.')
+    # Если это один из видов рефлексии, то
+    elif req[0] == 'course' or req[0] == 'communic' or req[0] == 'general':
+        bot.send_message(call.message.chat.id, text=f"Жду ваше сообщение.")
+        # Перебираем столбцы рефлексии и, в зависимости от пустоты ячейки, записываем в нее пометку
+        for i in range(1, len(base)):
+            if call.message.chat.id == base['ID'][i]:
+                if len(str(base['Рефлексия о курсе'][i])) > 3 and req[0] == 'course':
+                    base['Рефлексия о курсе'][i] = base['Рефлексия о курсе'][i] + 'course'
+                elif len(str(base['Рефлексия о курсе'][i])) <= 3 and req[0] == 'course':
+                    base['Рефлексия о курсе'][i] = 'course'
+                if len(str(base['Рефлексия о взаимодействии'][i])) > 3 and req[0] == 'communic':
+                    base['Рефлексия о взаимодействии'][i] = base['Рефлексия о взаимодействии'][i] + 'communic'
+                elif len(str(base['Рефлексия о взаимодействии'][i])) <= 3 and req[0] == 'communic':
+                    base['Рефлексия о взаимодействии'][i] =  'communic'
+                if len(str(base['Рефлексия общее'][i])) > 3 and req[0] == 'general':
+                    base['Рефлексия общее'][i] = base['Рефлексия общее'][i] + 'general'
+                elif len(str(base['Рефлексия общее'][i])) <= 3 and req[0] == 'general':
+                    base['Рефлексия общее'][i] = 'general'
+                base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+
+
 
 
     # Если выбранная группа - преподаватель, то
@@ -258,12 +356,6 @@ def callback_query(call):
                                                'Для этого воспользуйтесь тегом /message Укажате номер группы, которой нужно отправить сообщение, и текст сообщения. \n '
                                                'Желаю плодотворной работы!')
     base = ""
-
-
-
-
-
-
 
 
 
