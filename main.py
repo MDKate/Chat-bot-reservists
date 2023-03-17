@@ -88,28 +88,53 @@ def start_message(message):
     bot.send_message(message.chat.id, text='О чем вы хотите написать отзыв?', reply_markup=buttons)
 
 
+# Обработка тега перезагрузки ДЗ
+@bot.message_handler(commands=['job_reload'])
+def start_message(message):
+    base = pd.read_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+    del (base['Unnamed: 0'])
+    # Найти пользователя и изменить значение в таблице
+    for i in range(1, len(base)):
+        if message.chat.id == base['ID'][i]:
+            base['Отметка об отправке ДЗ'][i] = 'Перезагружено+'
+            base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+            bot.send_message(message.chat.id, "Жду вашу работу.")
 
 
-# Если пользователь кидает файл, то ищем его id и сохраняем файл в папку с именем пользователя
+# Обработка документов
 @bot.message_handler(content_types=["document"])
 def handle_docs_audio(message):
     document_id = message.document.file_id
     file_info = bot.get_file(document_id)
     base = pd.read_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
     del (base['Unnamed: 0'])
+    # Определяем ID пользователя
     for i in range(0, len(base)):
-        if len(str(base['ID'][i])) > 3:
-            if str(message.chat.id) == str(int(base['ID'][i])):
-                if len(str(base['Отметка об отправке ДЗ'][i])) <= 3:
-                    urllib.request.urlretrieve(f'http://api.telegram.org/file/bot{token}/{file_info.file_path}', f"C:/Users/50AdmNsk/Desktop/Doc/{str(base['Участники курса'][i]) + '.docx'}")
-                    base['Отметка об отправке ДЗ'][i] = 'Готово'
-                    base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
-                    bot.send_message(message.chat.id,
-                                     "Работа отправлена преподавателю на проверку.")
+        if base['ID'][i] == message.chat.id:
+            ind = i
+    # Если это первичная перезагрузка, то сохраняем файл с новым названием
+    if base['Отметка об отправке ДЗ'][ind] == "Перезагружено+":
+        base['Отметка об отправке ДЗ'][ind] = "Перезагружено"
+        base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+        urllib.request.urlretrieve(f'http://api.telegram.org/file/bot{token}/{file_info.file_path}',
+                                   f"C:/Users/50AdmNsk/Desktop/Doc/{str(base['Участники курса'][ind]) + '_reload.docx'}")
+        bot.send_message(message.chat.id,
+                         "Работа загружена заново.")
+    # Если это загрузка домашнего задания, то
+    else:
+        if str(message.chat.id) == str(int(base['ID'][ind])):
+            if len(str(base['Отметка об отправке ДЗ'][ind])) <= 3:
+                urllib.request.urlretrieve(f'http://api.telegram.org/file/bot{token}/{file_info.file_path}',
+                                           f"C:/Users/50AdmNsk/Desktop/Doc/{str(base['Участники курса'][ind]) + '.docx'}")
+                base['Отметка об отправке ДЗ'][ind] = 'Готово'
+                base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+                bot.send_message(message.chat.id,
+                                 "Работа отправлена преподавателю на проверку.")
+            # Если пользователь пытается перезагрузить ДЗ
+            else:
+                bot.send_message(message.chat.id,
+                                 "Если вы хотите перезаписать файл, то воспользуйтесь тегом /job_reload")
 
-                else:
-                    bot.send_message(message.chat.id,
-                                     "Если вы хотите перезаписать файл, то воспользуйтесь тегом /homework")
     base=""
 
 
