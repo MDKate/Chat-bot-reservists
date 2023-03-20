@@ -1,0 +1,1 @@
+print(str('fghjklcvbnm,cvbnm')[-5:])

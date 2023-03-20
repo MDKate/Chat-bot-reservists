@@ -127,7 +127,7 @@ def start_message(message, ):
     bot.send_message(message.chat.id, text='Введите ваши фамилию, имя и отчество.', )
 
 
-# Если преподаватель хочет отправить массовый комментарий, то
+# Подсказка о возможностях чат-бота
 @bot.message_handler(commands=['help'])
 def start_message(message, ):
     bot.send_message(message.chat.id, text='Чат-бот может отвечать только по программе, либо по запросам тегов. Если ему задать произвольные вопросы – он их не поймет. \n Теги: \n '
