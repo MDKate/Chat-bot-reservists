@@ -38,7 +38,7 @@ def job():
     if datetime.today().strftime('%Y-%m-%d %H:%M') == base['Дата'][0]:
         # Перебираем всех НЕ преподавателей и отправляем им видео
         for i in range(1, len(base)):
-            if base['Участники курса'][i] != 'Преподаватель':
+            if base['Группа'][i] != 'Преподаватель':
                 bot.send_message(int(base['ID'][i]), f'Посмотрите видео и пройдите тест. \n {base["Видео"][0]}', parse_mode=ParseMode.HTML)
     # Работа по отправке теста. Определяем время отправки теста, с учетом длительности видео
     mint = datetime.strptime(str(base['Дата'][0]), '%Y-%m-%d %H:%M')+ timedelta(minutes=int(base['Продолжительность (мин)'][0]))
@@ -46,7 +46,7 @@ def job():
     if datetime.today().strftime('%Y-%m-%d %H:%M') == mint.strftime('%Y-%m-%d %H:%M'):
         # Перебираем всех НЕ преподавателей и высылаем кнопку на прохождение теста
         for i in range(1, len(base)):
-            if base['Участники курса'][i] != 'Преподаватель':
+            if base['Группа'][i] != 'Преподаватель':
                 markup = telebot.types.InlineKeyboardMarkup()
                 markup.add(telebot.types.InlineKeyboardButton(text='Пройти тест', callback_data='testr'))
                 bot.send_message(int(base['ID'][i]), text=f"Для начала тестирования нажмите на кнопку: ", reply_markup=markup)
@@ -54,7 +54,7 @@ def job():
     if datetime.today().strftime('%Y-%m-%d %H:%M') == base['Дата домашнего задания'][0]:
         # Перебираем всех НЕ преподавателей и отправляем им видео
         for i in range(1, len(base)):
-            if base['Участники курса'][i] != 'Преподаватель':
+            if base['Группа'][i] != 'Преподаватель':
                 bot.send_message(int(base['ID'][i]), text=f'Домашнее задание: \n {base["Домашнее задание"][0]}', parse_mode=ParseMode.HTML)
                 bot.send_message(int(base['ID'][i]), 'Для отправки домашнего задания боту - просто отправьте файл боту. Внимание! Файл должен иметь расширение docx! Если вы хотите перезаписать файл, то воспользуйтесь тегом /homework', parse_mode=ParseMode.HTML)
     # Бежим по столбцу комментариев. Если он есть, то отправить всем ученикам и стереть, преподавателя предупредить
@@ -63,10 +63,10 @@ def job():
             for j in range(1, len(base)):
                 if base['Группа'][j] != "Преподаватель":
                     bot.send_message(int(base['ID'][j]), text=base['Комментарий'][a])
-                    base['Комментарий'][a] = ""
-                    base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
                 if base['Группа'][j] == "Преподаватель":
                     bot.send_message(int(base['ID'][j]), text='Сообщение отправлено')
+            base['Комментарий'][a] = ""
+            base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
     base=""
 
 # Контроллер, который выполняет работу каждую минуту
@@ -163,6 +163,10 @@ def handle_docs_audio(message):
                                    f"C:/Users/50AdmNsk/Desktop/Doc/{str(base['Участники курса'][ind]) + '_reload.docx'}")
         bot.send_message(message.chat.id,
                          "Работа загружена заново.")
+        # Отправка оповещения преподавателю
+        for i in range(1, len(base)):
+            if base['Группа'][i] == 'Преподаватель':
+                bot.send_message(base['ID'][i], text=f"Ученик {base['Участники курса'][ind]} повторно загрузил работу")
     # Если это загрузка домашнего задания, то
     else:
         if str(message.chat.id) == str(int(base['ID'][ind])):
@@ -173,10 +177,15 @@ def handle_docs_audio(message):
                 base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
                 bot.send_message(message.chat.id,
                                  "Работа отправлена преподавателю на проверку.")
+            # Отправка оповещения преподавателю
+            for i in range(1, len(base)):
+                if base['Группа'][i] == 'Преподаватель':
+                    bot.send_message(base['ID'][i],
+                                     text=f"Ученик {base['Участники курса'][ind]} загрузил работу")
             # Если пользователь пытается перезагрузить ДЗ
             else:
                 bot.send_message(message.chat.id,
-                                 "Если вы хотите перезаписать файл, то воспользуйтесь тегом /job_reload")
+                                 "Если вы хотите перезаписать файл, то воспользуйтесь тегом /jobreload")
 
     base=""
 
@@ -324,6 +333,12 @@ def callback_query(call):
             if call.message.chat.id == base['ID'][i]:
                 base['Отметка о просмотре'][i] = 'Пройдено'
                 base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+                # Отправка оповещения преподавателю
+                for a in range(1, len(base)):
+                    if base['Группа'][a] == 'Преподаватель' and len(str(base['Отметка о просмотре'][i])) <= 3 :
+                        bot.send_message(base['ID'][a],
+                                         text=f"Ученик {base['Участники курса'][i]} просмотрел видео")
+
                 iDM=i
         # Если человек пытается повторно пройти тест, то
         if base['Итого баллов?'][iDM] >= 0:
@@ -408,10 +423,19 @@ def callback_query(call):
             base['Отметка о прохождении теста'][iDM] = "Пройдено"
             base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
             bot.send_message(call.message.chat.id, f'Вы сдали тест на :{int(float(base["Итого баллов?"][iDM])*100/3)}%. \n Теперь вы можете приступить к выполнению домашнего задания.')
+            for i in range(1, len(base)):
+                if base['Группа'][i] == 'Преподаватель':
+                    bot.send_message(base['ID'][i],
+                                     text=f"Ученик {base['Участники курса'][iDM]} прошел тест с баллом {int(float(base['Итого баллов?'][iDM])*100/3)}%.")
         # Если тест не пройден, то
         else:
             bot.send_message(call.message.chat.id,
                              f'Вы не прошли тест. Обратитесь к преподавателю.')
+            for i in range(1, len(base)):
+                if base['Группа'][i] == 'Преподаватель':
+                    bot.send_message(base['ID'][i],
+                                     text=f"Ученик {base['Участники курса'][iDM]} не прошел тест")
+
     # Если это один из видов рефлексии, то
     elif req[0] == 'course' or req[0] == 'communic' or req[0] == 'general':
         bot.send_message(call.message.chat.id, text=f"Жду ваше сообщение.")
