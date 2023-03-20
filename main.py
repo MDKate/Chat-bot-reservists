@@ -57,6 +57,16 @@ def job():
             if base['Участники курса'][i] != 'Преподаватель':
                 bot.send_message(int(base['ID'][i]), text=f'Домашнее задание: \n {base["Домашнее задание"][0]}', parse_mode=ParseMode.HTML)
                 bot.send_message(int(base['ID'][i]), 'Для отправки домашнего задания боту - просто отправьте файл боту. Внимание! Файл должен иметь расширение docx! Если вы хотите перезаписать файл, то воспользуйтесь тегом /homework', parse_mode=ParseMode.HTML)
+    # Бежим по столбцу комментариев. Если он есть, то отправить всем ученикам и стереть, преподавателя предупредить
+    for a in range(1, len(base)):
+        if len(str(base['Комментарий'][a])) > 3:
+            for j in range(1, len(base)):
+                if base['Группа'][j] != "Преподаватель":
+                    bot.send_message(int(base['ID'][j]), text=base['Комментарий'][a])
+                    base['Комментарий'][a] = ""
+                    base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+                if base['Группа'][j] == "Преподаватель":
+                    bot.send_message(int(base['ID'][j]), text='Сообщение отправлено')
     base=""
 
 # Контроллер, который выполняет работу каждую минуту
@@ -75,6 +85,21 @@ class ScheduleMessage():
 # ------------------------------------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------------------------------
+# Если
+@bot.message_handler(commands=['massmessage'])
+def start_message(message, ):
+    print(1)
+    base = pd.read_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+    del (base['Unnamed: 0'])
+    # Найти пользователя
+    for i in range(1, len(base)):
+        if message.chat.id == base['ID'][i]:
+            if base['Группа'][i] == 'Преподаватель':
+                base['Комментарий'][i] = 'com'
+                base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+                bot.send_message(message.chat.id, text='Напишите сообщение, и в течение часа я его перешлю.', )
+            elif base['Группа'][i] != 'Преподаватель':
+                bot.send_message(message.chat.id, text='Ученик не могут отправлять массовые комментарии!', )
 
 
 # Если ученик хочет оставить рефлексию, то создаем кнопки
@@ -100,6 +125,10 @@ def start_message(message, ):
             base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
 
     bot.send_message(message.chat.id, text='Введите ваши фамилию, имя и отчество.', )
+
+
+
+
 
 
 # Обработка тега перезагрузки ДЗ
@@ -182,6 +211,7 @@ def next_message(message):
     # Бежим по всем колонкам рефлексии, и если где-то увидели пометку, то туда и записываем сообщение
     for i in range(1, len(base)):
         if message.chat.id == base['ID'][i]:
+            idM = i
             if len(str(base['Рефлексия о курсе'][i])) > 3:
                 if str(base['Рефлексия о курсе'][i])[-6:] == 'course':
                     base['Рефлексия о курсе'][i] = base['Рефлексия о курсе'][i] + '[' + datetime.today().strftime(
@@ -208,7 +238,7 @@ def next_message(message):
 
     # Если пользователь зарегистрировался и внес иформацию о своей группе, то
     if control == 0:
-        if message.chat.id in base['ID'].unique() and len(str(list(base[base['ID'] == message.chat.id]['Группа'])))-4 > 3:
+        if message.chat.id in base['ID'].unique() and len(str(list(base[base['ID'] == message.chat.id]['Группа'])))-4 > 3 and len(str(base['Комментарий'][idM])) > 3 :
             bot.send_message(message.chat.id, emoji.emojize(
                 "Увы! :weary_face: Извините! Я еще плохо умею общаться 	:woman_facepalming:"))
     # Если пользователь еще не зарегистрирован, то
@@ -221,6 +251,11 @@ def next_message(message):
             if len(str(base['ID'][i])) > 3:
                 if str(message.chat.id) == str(int(base['ID'][i])):
                     idM = i
+                    if base['Комментарий'][i] == 'com':
+                        base['Комментарий'][i] = message.text
+                        base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+                        bot.send_message(message.chat.id, text='Сообщение будет разослано.', )
+
                     # Если пользователь ввел имя и группу, то
                     if len(str(base['Группа'][idM])) == 3 and len(str(base['Участники курса'][idM])) > 3:
                         # Дозаписываем данные и сохраняем таблицу
