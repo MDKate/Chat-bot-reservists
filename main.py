@@ -88,8 +88,22 @@ def start_message(message):
     bot.send_message(message.chat.id, text='О чем вы хотите написать отзыв?', reply_markup=buttons)
 
 
+# Если ученик хочет перерегистрироваться, то удаляем его запись и просим зарегиситрироваться
+@bot.message_handler(commands=['reregistration'])
+def start_message(message, ):
+    base = pd.read_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+    del (base['Unnamed: 0'])
+    # Найти пользователя
+    for i in range(1, len(base)):
+        if message.chat.id == base['ID'][i]:
+            base = base.drop(index=[i])
+            base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+
+    bot.send_message(message.chat.id, text='Введите ваши фамилию, имя и отчество.', )
+
+
 # Обработка тега перезагрузки ДЗ
-@bot.message_handler(commands=['job_reload'])
+@bot.message_handler(commands=['jobreload'])
 def start_message(message):
     base = pd.read_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
     del (base['Unnamed: 0'])
@@ -192,14 +206,13 @@ def next_message(message):
                     bot.send_message(message.chat.id, text=f"Спасибо за ваш отзыв!")
 
 
-
     # Если пользователь зарегистрировался и внес иформацию о своей группе, то
     if control == 0:
         if message.chat.id in base['ID'].unique() and len(str(list(base[base['ID'] == message.chat.id]['Группа'])))-4 > 3:
             bot.send_message(message.chat.id, emoji.emojize(
                 "Увы! :weary_face: Извините! Я еще плохо умею общаться 	:woman_facepalming:"))
     # Если пользователь еще не зарегистрирован, то
-    else:
+    if control==0 :
         sleep(1)
         # Проверяем, зарегистрировал ли человек имя и, если да, то определяем, где его строчка в таблице
         base = pd.read_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
@@ -213,6 +226,21 @@ def next_message(message):
                         # Дозаписываем данные и сохраняем таблицу
                         group = message.text
                         base['Группа'][idM] = group
+                        # Копирует статичные столбцы для нового человека
+                        base['Блок: "Начало"'][idM] = base['Блок: "Начало"'][0]
+                        base['Дата'][idM] = base['Дата'][0]
+                        base['Видео'][idM] = base['Видео'][0]
+                        base['Продолжительность (мин)'][idM] = base['Продолжительность (мин)'][0]
+                        base['Тест 1'][idM] = base['Тест 1'][0]
+                        base['Ответ 1'][idM] = base['Ответ 1'][0]
+                        base['Тест 2'][idM] = base['Тест 2'][0]
+                        base['Ответ 2'][idM] = base['Ответ 2'][0]
+                        base['Тест 3'][idM] = base['Тест 3'][0]
+                        base['Ответ 3'][idM] = base['Ответ 3'][0]
+                        base['Дата домашнего задания'][idM] = base['Дата домашнего задания'][0]
+                        base['Домашнее задание'][idM] = base['Домашнее задание'][0]
+
+
                         # base.loc[:, ('Группа',idM) ] = group
 
                         base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
@@ -227,6 +255,7 @@ def next_message(message):
             else: idM=0
         # Если пользователь ввел имя, но не ввел группу, то
         if idM==0:
+
             # Дозаписываем данные и сохраняем таблицу
             name = message.text
             base = base.append({"Участники курса": name, "ID": message.chat.id}, ignore_index=True)
