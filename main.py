@@ -60,13 +60,53 @@ def job():
     # Бежим по столбцу комментариев. Если он есть, то отправить всем ученикам и стереть, преподавателя предупредить
     for a in range(1, len(base)):
         if len(str(base['Комментарий'][a])) > 3:
+
             for j in range(1, len(base)):
-                if base['Группа'][j] != "Преподаватель":
-                    bot.send_message(int(base['ID'][j]), text=base['Комментарий'][a])
-                if base['Группа'][j] == "Преподаватель":
-                    bot.send_message(int(base['ID'][j]), text='Сообщение отправлено')
+                if str(base['Группы рассылки'][a]) != 'Все':
+                    if (base['Группа'][j] != "Преподаватель" and (str(base['Группа'][j])) in str(base['Группы рассылки'][a])):
+                        bot.send_message(int(base['ID'][j]), text=base['Комментарий'][a])
+                    if base['Группа'][j] == "Преподаватель":
+                        bot.send_message(int(base['ID'][j]), text='Сообщение отправлено')
+                else:
+                    if base['Группа'][j] != "Преподаватель":
+                        bot.send_message(int(base['ID'][j]), text=base['Комментарий'][a])
+                    if base['Группа'][j] == "Преподаватель":
+                        bot.send_message(int(base['ID'][j]), text='Сообщение отправлено')
             base['Комментарий'][a] = ""
+            base['Группы рассылки'][a] = ""
             base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+
+        # отправка оповещений ученикам
+        dtC1 = 15  # первый контроль (через 15 дней)
+        dtC2 = 27  # второй контроль (через 27 дней)
+        # Подгружаем базу
+        base = pd.read_excel('C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx')
+        del (base['Unnamed: 0'])
+        # Работа по отправке оповещения. Если текущая дата совпадает с датой из таблицы, то
+        # Перебираем всех НЕ преподавателей и отправляем им видео
+        #
+        dt1 = datetime.today() + timedelta(days=dtC1)  # к текущей дате добавляем 15 дней
+        dt2 = datetime.today() + timedelta(days=dtC2)  # к текущей дате добавляем 27 дней
+        # отослать оповещение о необходимости тестирования и сдачи ДЗ
+        # В поле 'Дата' - дата предоставления теста
+        if (dt1.strftime('%Y-%m-%d %H:%M') == base['Дата'][0]) or (dt2.strftime('%Y-%m-%d %H:%M') == base['Дата'][0]):
+            # пора напомнить о тестировании
+            for i in range(1, len(base)):
+                # Перебираем всех НЕ преподавателей
+                if (base['Группа'][i] != 'Преподаватель') and (base['Отметка о прохождении теста'][i] != 'Пройдено'):
+                    bot.send_message(int(base['ID'][i]),
+                                     text='Уважаемый ' + base['Участники курса'][i] + ", пройти тест необходимо до " +
+                                          base['Дата'][0])
+        # В поле 'Дата домашнего задания' - дата предоставления ДЗ
+        if (dt1.strftime('%Y-%m-%d %H:%M') == base['Дата домашнего задания'][0]) or (
+                dt2.strftime('%Y-%m-%d %H:%M') == base['Дата домашнего задания'][0]):
+            for i in range(1, len(base)):
+                # Перебираем всех НЕ преподавателей
+                if (base['Группа'][i] != 'Преподаватель') and ((base['Отметка об отправке ДЗ'][i] != 'Загружено') and (
+                        base['Отметка об отправке ДЗ'][i] != 'Перезагружено')):
+                    bot.send_message(int(base['ID'][i]),
+                                     text='Уважаемый ' + base['Участники курса'][i] + ", Необходимо сдать ДЗ " +
+                                          base['Дата домашнего задания'][0])
     base=""
 
 # Контроллер, который выполняет работу каждую минуту
@@ -88,16 +128,14 @@ class ScheduleMessage():
 # Если преподаватель хочет отправить массовый комментарий, то
 @bot.message_handler(commands=['massmessage'])
 def start_message(message, ):
-    print(1)
     base = pd.read_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
     del (base['Unnamed: 0'])
     # Найти пользователя
     for i in range(1, len(base)):
         if message.chat.id == base['ID'][i]:
             if base['Группа'][i] == 'Преподаватель':
-                base['Комментарий'][i] = 'com'
-                base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
-                bot.send_message(message.chat.id, text='Напишите сообщение, и в течение часа я его перешлю.', )
+
+                bot.send_message(message.chat.id, text='Напишите список групп, которые должны получить сообщение, в следующем виде: "Грп: 1, 2 ..., n". \n Если хотите, чтобы сообщение получили все ученики, то напишите "Всем грп".', )
             elif base['Группа'][i] != 'Преподаватель':
                 bot.send_message(message.chat.id, text='Ученик не могут отправлять массовые комментарии!', )
 
@@ -254,11 +292,45 @@ def next_message(message):
                     bot.send_message(message.chat.id, text=f"Спасибо за ваш отзыв!")
 
 
+
+
     # Если пользователь зарегистрировался и внес иформацию о своей группе, то
     if control == 0:
-        if message.chat.id in base['ID'].unique() and len(str(list(base[base['ID'] == message.chat.id]['Группа'])))-4 > 3 and len(str(base['Комментарий'][idM])) > 3 :
+        if message.chat.id in base['ID'].unique() and len(str(list(base[base['ID'] == message.chat.id]['Группа'])))-2 <= 2:
             bot.send_message(message.chat.id, emoji.emojize(
                 "Увы! :weary_face: Извините! Я еще плохо умею общаться 	:woman_facepalming:"))
+        if (message.chat.id in base['ID'].unique()) and  ('Преподаватель' in list(base[base['ID'] == message.chat.id]['Группа'])) and (len(str(base['Комментарий'][idM])) > 3):
+            print(1)
+            # if list(base[base['ID'] == message.chat.id]['Группа']) == message.text:
+            #     bot.send_message(message.chat.id, emoji.emojize(
+            #     "Увы! :weary_face: Извините! Я еще плохо умею общаться 	:woman_facepalming:"))
+            if len(str(message.text)) >= 5:
+                if len(str(message.text)) >= 8:
+                    if str(message.text)[0:8] != 'Всем грп' and str(message.text)[0:5] != 'Грп:':
+                        if list(base[base['ID'] == message.chat.id]['Группа']) == message.text:
+                            bot.send_message(message.chat.id, emoji.emojize(
+                                "Увы! :weary_face: Извините! Я еще плохо умею общаться 	:woman_facepalming:"))
+                else:
+                    if str(message.text)[0:5] != 'Грп:':
+                        if list(base[base['ID'] == message.chat.id]['Группа']) == message.text:
+                            bot.send_message(message.chat.id, emoji.emojize(
+                                "Увы! :weary_face: Извините! Я еще плохо умею общаться 	:woman_facepalming:"))
+
+        elif  (message.chat.id in base['ID'].unique()) and  ('Преподаватель' in list(base[base['ID'] == message.chat.id]['Группа'])) and (len(str(base['Комментарий'][idM])) <= 3):
+            print(2)
+            # bot.send_message(message.chat.id, emoji.emojize(
+            #     "Увы! :weary_face: Извините! Я еще плохо умею общаться 	:woman_facepalming:"))
+            if len(str(message.text)) >= 5:
+                if len(str(message.text)) >= 8:
+                    if str(message.text)[0:8] != 'Всем грп' and str(message.text)[0:5] != 'Грп:':
+                        bot.send_message(message.chat.id, emoji.emojize(
+                	"Увы! :weary_face: Извините! Я еще плохо умею общаться 	:woman_facepalming:"))
+                else:
+                    if str(message.text)[0:5] != 'Грп:':
+                        bot.send_message(message.chat.id, emoji.emojize(
+                	"Увы! :weary_face: Извините! Я еще плохо умею общаться 	:woman_facepalming:"))
+
+
     # Если пользователь еще не зарегистрирован, то
     if control==0 :
         sleep(1)
@@ -269,12 +341,13 @@ def next_message(message):
             if len(str(base['ID'][i])) > 3:
                 if str(message.chat.id) == str(int(base['ID'][i])):
                     idM = i
-                    if base['Комментарий'][i] == 'com':
-                        base['Комментарий'][i] = message.text
+                    if base['Комментарий'][i] == 'comm':
+                        base['Комментарий'][i] = str(message.text)
                         base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
                         bot.send_message(message.chat.id, text='Сообщение будет разослано.', )
 
                     # Если пользователь ввел имя и группу, то
+                    print((base['Участники курса'][idM]))
                     if len(str(base['Группа'][idM])) == 3 and len(str(base['Участники курса'][idM])) > 3:
                         # Дозаписываем данные и сохраняем таблицу
                         group = message.text
@@ -302,7 +375,8 @@ def next_message(message):
                                          'Для начала, необходимо ознакомиться с некоторыми правилами. \n У вас есть несколько учебных блоков, '
                                          'к каждому из которых есть обязательное задание. Блок состоит из обучающего видео, проверочного теста и домашнего задания. \n '
                                          'Выполняйте все задания в срок! \n Иногда вам будут приходить напоминания, что пора приступить к работе и сообщения от преподавателя. Если вы захотите '
-                                         'перезагрузить домашнюю работу - воспользуйтесть тегом /jobreload. Если вы захотите оставить рефлексию - воспользуйтесь тегом /reflection. \n'
+                                         'перезагрузить домашнюю работу - воспользуйтесть тегом /jobreload. Если вы захотите оставить рефлексию - воспользуйтесь тегом /reflection. '
+                                         'Если вы хотите вспомнить, какие теги за что отвечают, то воспользуйтесь тегом /help \n '
                                          'Желаю успешной учебы!')
                 # else: idM=0
             else: idM=0
@@ -320,7 +394,17 @@ def next_message(message):
             markup.add(telebot.types.InlineKeyboardButton(text='Ученик', callback_data='but2'))
             bot.send_message(message.chat.id, text=f"Выберите вашу роль: ", reply_markup=markup)
 
-
+    if str(message.text)[0:4] == 'Грп:' or str(message.text)[0:8] == 'Всем грп':
+        for i in range(1, len(base)):
+            if message.chat.id == base['ID'][i]:
+                base['Комментарий'][i] = 'comm'
+                if str(message.text)[0:4] == 'Грп:':
+                    base['Группы рассылки'][i] = str(message.text)[4:]
+                    base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+                if str(message.text)[0:8] == 'Всем грп':
+                    base['Группы рассылки'][i] = 'Все'
+                    base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+                bot.send_message(message.chat.id, text=f"Напишите сообщение, и я его перешлю.")
 
     base = ""
 
@@ -475,7 +559,8 @@ def callback_query(call):
         bot.send_message(call.message.chat.id, 'Отлично! Давайте приступим к работе!')
         bot.send_message(call.message.chat.id, 'По мере прохождения учебного блока, я буду писать вам о том, кто из учеников уже ознакомился с видео, кто и на какой балл прошел тест,'
                                                'пересылать домашнее задание учеников. В любое время вы можете написать мне, и я передам сообщение всем ученикам персонально. '
-                                               'Для этого воспользуйтесь тегом /message Укажате номер группы, которой нужно отправить сообщение, и текст сообщения. \n '
+                                               'Для этого воспользуйтесь тегом /message Укажате номер группы, которой нужно отправить сообщение, и текст сообщения. '
+                                               'Если вы хотите вспомнить, какие теги за что отвечают, то воспользуйтесь тегом /help\n '
                                                'Желаю плодотворной работы!')
     base = ""
 
