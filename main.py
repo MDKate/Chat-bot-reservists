@@ -139,6 +139,18 @@ def start_message(message, ):
             elif base['Группа'][i] != 'Преподаватель':
                 bot.send_message(message.chat.id, text='Ученик не могут отправлять массовые комментарии!', )
 
+@bot.message_handler(commands=['opentest'])
+def start_message(message, ):
+    base = pd.read_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+    del (base['Unnamed: 0'])
+    for i in range(1, len(base)):
+        if base['ID'][i] == message.chat.id:
+            if base['Группа'][i] == 'Преподаватель':
+                bot.send_message(message.chat.id, text='Чтобы открыть тест ученику напишите: "Открыть тест: ФИО группа". Например: "Открыть тест: Иванов Иван Иванович 1"', )
+            else:
+                bot.send_message(message.chat.id, text='Ученик не может сам открыть тест!', )
+
+
 
 # Если ученик хочет оставить рефлексию, то создаем кнопки
 @bot.message_handler(commands=['reflection'])
@@ -170,7 +182,7 @@ def start_message(message, ):
 def start_message(message, ):
     bot.send_message(message.chat.id, text='Чат-бот может отвечать только по программе, либо по запросам тегов. Если ему задать произвольные вопросы – он их не поймет. \n Теги: \n '
                                            '/help – описание всех возможностей бота \n /massmessage – отправка сообщения всем ученикам (только преподаватель) \n /reflection – оставить отзыв \n '
-                                           '/reregistration – повторная регистрация на курс \n /jobreload – перезагрузка домашнего задания \n /start – начало работы с ботом (регистрация) \n '
+                                           '/reregistration – повторная регистрация на курс \n /jobreload – перезагрузка домашнего задания \n /opentext - открыть тест повторно (для преподавателя) \n /start – начало работы с ботом (регистрация) \n '
                                            'Ученик в определенное время получает ссылку на видео. После просмотра видео появляется кнопка доступа к тестированию. Тест проходится один раз. '
                                            'После прохождения теста бот, в определенное время, отправляет домашнее задание. Ученик может перезагружать домашнее задание. \n '
                                            'Преподаватель может назначать даты и видеть полную картину активности учеников. Бот отправляет преподавателю отчет о действии всех учеников. '
@@ -292,40 +304,55 @@ def next_message(message):
                     bot.send_message(message.chat.id, text=f"Спасибо за ваш отзыв!")
 
 
+    if len(str(message.text)) > 13:
+        if "Открыть тест:" in message.text:
+            text = (message.text).split()
+            grp = text[-1]
+            nam = text[-4] + " " + text[-3] + " "+ text[-2]
+            for f in range(1, len(base)):
+                if base['Участники курса'][f] == nam and str(base['Группа'][f]) == grp:
+                    base['Отметка о прохождении теста'] = ""
+                    base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+                    bot.send_message(message.chat.id, text=f"Доступ открыт.")
 
 
     # Если пользователь зарегистрировался и внес иформацию о своей группе, то
     if control == 0:
         if message.chat.id in base['ID'].unique() and len(str(list(base[base['ID'] == message.chat.id]['Группа'])))-2 <= 2:
+            # print(1)
             bot.send_message(message.chat.id, emoji.emojize(
                 "Увы! :weary_face: Извините! Я еще плохо умею общаться 	:woman_facepalming:"))
         if (message.chat.id in base['ID'].unique()) and  ('Преподаватель' in list(base[base['ID'] == message.chat.id]['Группа'])) and (len(str(base['Комментарий'][idM])) > 3):
-            print(1)
+            # print(2)
             # if list(base[base['ID'] == message.chat.id]['Группа']) == message.text:
             #     bot.send_message(message.chat.id, emoji.emojize(
             #     "Увы! :weary_face: Извините! Я еще плохо умею общаться 	:woman_facepalming:"))
             if len(str(message.text)) >= 5:
+                # print(3)
                 if len(str(message.text)) >= 8:
                     if str(message.text)[0:8] != 'Всем грп' and str(message.text)[0:5] != 'Грп:':
                         if list(base[base['ID'] == message.chat.id]['Группа']) == message.text:
                             bot.send_message(message.chat.id, emoji.emojize(
                                 "Увы! :weary_face: Извините! Я еще плохо умею общаться 	:woman_facepalming:"))
                 else:
+                    # print(4)
                     if str(message.text)[0:5] != 'Грп:':
                         if list(base[base['ID'] == message.chat.id]['Группа']) == message.text:
                             bot.send_message(message.chat.id, emoji.emojize(
                                 "Увы! :weary_face: Извините! Я еще плохо умею общаться 	:woman_facepalming:"))
 
         elif  (message.chat.id in base['ID'].unique()) and  ('Преподаватель' in list(base[base['ID'] == message.chat.id]['Группа'])) and (len(str(base['Комментарий'][idM])) <= 3):
-            print(2)
+            # print(5)
             # bot.send_message(message.chat.id, emoji.emojize(
             #     "Увы! :weary_face: Извините! Я еще плохо умею общаться 	:woman_facepalming:"))
             if len(str(message.text)) >= 5:
                 if len(str(message.text)) >= 8:
-                    if str(message.text)[0:8] != 'Всем грп' and str(message.text)[0:5] != 'Грп:':
+                    # print(6)
+                    if str(message.text)[0:8] != 'Всем грп' and str(message.text)[0:5] != 'Грп:' and not(str(message.text)[0:5] != 'Открыть тест:'):
                         bot.send_message(message.chat.id, emoji.emojize(
                 	"Увы! :weary_face: Извините! Я еще плохо умею общаться 	:woman_facepalming:"))
                 else:
+                    print(7)
                     if str(message.text)[0:5] != 'Грп:':
                         bot.send_message(message.chat.id, emoji.emojize(
                 	"Увы! :weary_face: Извините! Я еще плохо умею общаться 	:woman_facepalming:"))
@@ -416,6 +443,9 @@ def callback_query(call):
     # Считываем таблицу
     base = pd.read_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
     del (base['Unnamed: 0'])
+    for i in range(1, len(base)):
+        if call.message.chat.id == base['ID'][i]:
+            iDM = i
     # Если выбранная группа - ученик, то
     if req[0] == 'but2':
         bot.send_message(call.message.chat.id, 'Введите вашу группу:')
@@ -449,85 +479,98 @@ def callback_query(call):
             buttons.row(button3, button4)
             bot.send_message(call.message.chat.id, text=str(question), reply_markup=buttons)
     # Если это ответ на первый вопрос, то
-    elif 't1' in req[0]:
-        # Задаем начальное число баллов, раное нулю
-        for i in range(1, len(base)):
-            if call.message.chat.id == base['ID'][i]:
-                iDM=i
-                base['Итого баллов?'][iDM] = 0
-        # Получаем ответ на вопрос
-        if req[0] == 't1v1': answer = "1"
-        if req[0] == 't1v2': answer = "2"
-        if req[0] == 't1v3': answer = "3"
-        if req[0] == 't1v4': answer = "4"
-        # Если ответ верен, то присваиваем балл
-        if str(base['Ответ 1'][0]) == answer: base['Итого баллов?'][iDM] += 1
-        base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
-        # Создаем кнопки для второго вопроса
-        question = base['Тест 2'][0]
-        buttons = telebot.types.InlineKeyboardMarkup()
-        button1 = telebot.types.InlineKeyboardButton(text='1', callback_data='t2v1')
-        button2 = telebot.types.InlineKeyboardButton(text='2', callback_data='t2v2')
-        buttons.row(button1, button2)
-        button3 = telebot.types.InlineKeyboardButton(text='3', callback_data='t2v3')
-        button4 = telebot.types.InlineKeyboardButton(text='4', callback_data='t2v4')
-        buttons.row(button3, button4)
-        bot.send_message(call.message.chat.id, text=str(question), reply_markup=buttons)
-    # Если это ответ на второй вопрос, то
-    elif 't2' in req[0]:
-        for i in range(1, len(base)):
-            if call.message.chat.id == base['ID'][i]:
-                iDM=i
-        # Получаем ответ на вопрос
-        if req[0]=='t2v1': answer="1"
-        if req[0]=='t2v2': answer="2"
-        if req[0]=='t2v3': answer="3"
-        if req[0]=='t2v4': answer="4"
-        # Если ответ правильный, то присваиваем балл
-        if str(base['Ответ 2'][0]) == answer: base['Итого баллов?'][iDM] +=1
-        base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
-        # Создаем третий вопрос
-        question = base['Тест 3'][0]
-        buttons = telebot.types.InlineKeyboardMarkup()
-        button1 = telebot.types.InlineKeyboardButton(text='1', callback_data='t3v1')
-        button2 = telebot.types.InlineKeyboardButton(text='2', callback_data='t3v2')
-        buttons.row(button1, button2)
-        button3 = telebot.types.InlineKeyboardButton(text='3', callback_data='t3v3')
-        button4 = telebot.types.InlineKeyboardButton(text='4', callback_data='t3v4')
-        buttons.row(button3, button4)
-        bot.send_message(call.message.chat.id, text=str(question), reply_markup=buttons)
-    # Если это ответ на третий вопрос, то
-    elif 't3' in req[0]:
-        for i in range(1, len(base)):
-            if call.message.chat.id == base['ID'][i]:
-                iDM=i
-        # Получаем ответ на вопрос
-        if req[0]=='t3v1': answer="1"
-        if req[0]=='t3v2': answer="2"
-        if req[0]=='t3v3': answer="3"
-        if req[0]=='t3v4': answer="4"
-        # Если ответ правильный, то присваиваем балл
-        if str(base['Ответ 3'][0]) == answer: base['Итого баллов?'][iDM] +=1
-        base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
-        base = pd.read_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
-        del (base['Unnamed: 0'])
-        # Если тест пройден, то
-        if int(float(base["Итого баллов?"][iDM])*100/3) > 50:
-            base['Отметка о прохождении теста'][iDM] = "Пройдено"
-            base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
-            bot.send_message(call.message.chat.id, f'Вы сдали тест на :{int(float(base["Итого баллов?"][iDM])*100/3)}%. \n Теперь вы можете приступить к выполнению домашнего задания.')
+    elif 't1' in req[0] :
+        if base['Отметка о прохождении теста'][iDM] != "Пройдено":
+            # Задаем начальное число баллов, раное нулю
             for i in range(1, len(base)):
-                if base['Группа'][i] == 'Преподаватель':
-                    bot.send_message(base['ID'][i],
-                                     text=f"Ученик {base['Участники курса'][iDM]} прошел тест с баллом {int(float(base['Итого баллов?'][iDM])*100/3)}%.")
-        # Если тест не пройден, то
+                if call.message.chat.id == base['ID'][i]:
+                    iDM = i
+                    base['Итого баллов?'][iDM] = 0
+            # Получаем ответ на вопрос
+            if req[0] == 't1v1': answer = "1"
+            if req[0] == 't1v2': answer = "2"
+            if req[0] == 't1v3': answer = "3"
+            if req[0] == 't1v4': answer = "4"
+            # Если ответ верен, то присваиваем балл
+            if str(base['Ответ 1'][0]) == answer: base['Итого баллов?'][iDM] += 1
+            base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+            # Создаем кнопки для второго вопроса
+            question = base['Тест 2'][0]
+            buttons = telebot.types.InlineKeyboardMarkup()
+            button1 = telebot.types.InlineKeyboardButton(text='1', callback_data='t2v1')
+            button2 = telebot.types.InlineKeyboardButton(text='2', callback_data='t2v2')
+            buttons.row(button1, button2)
+            button3 = telebot.types.InlineKeyboardButton(text='3', callback_data='t2v3')
+            button4 = telebot.types.InlineKeyboardButton(text='4', callback_data='t2v4')
+            buttons.row(button3, button4)
+            bot.send_message(call.message.chat.id, text=str(question), reply_markup=buttons)
         else:
             bot.send_message(call.message.chat.id,
-                             f'Вы не прошли тест. Обратитесь к преподавателю.')
+                             text='Внимание! Без разрешения преподавателя проходить тест повторно запрещено!')
+    # Если это ответ на второй вопрос, то
+    elif 't2' in req[0] :
+        if base['Отметка о прохождении теста'][iDM] != "Пройдено":
             for i in range(1, len(base)):
-                if base['Группа'][i] == 'Преподаватель':
-                    bot.send_message(base['ID'][i],
-                                     text=f"Ученик {base['Участники курса'][iDM]} не прошел тест")
+                if call.message.chat.id == base['ID'][i]:
+                    iDM = i
+            # Получаем ответ на вопрос
+            if req[0] == 't2v1': answer = "1"
+            if req[0] == 't2v2': answer = "2"
+            if req[0] == 't2v3': answer = "3"
+            if req[0] == 't2v4': answer = "4"
+            # Если ответ правильный, то присваиваем балл
+            if str(base['Ответ 2'][0]) == answer: base['Итого баллов?'][iDM] += 1
+            base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+            # Создаем третий вопрос
+            question = base['Тест 3'][0]
+            buttons = telebot.types.InlineKeyboardMarkup()
+            button1 = telebot.types.InlineKeyboardButton(text='1', callback_data='t3v1')
+            button2 = telebot.types.InlineKeyboardButton(text='2', callback_data='t3v2')
+            buttons.row(button1, button2)
+            button3 = telebot.types.InlineKeyboardButton(text='3', callback_data='t3v3')
+            button4 = telebot.types.InlineKeyboardButton(text='4', callback_data='t3v4')
+            buttons.row(button3, button4)
+            bot.send_message(call.message.chat.id, text=str(question), reply_markup=buttons)
+        else:
+            bot.send_message(call.message.chat.id,
+                             text='Внимание! Без разрешения преподавателя проходить тест повторно запрещено!')
+    # Если это ответ на третий вопрос, то
+    elif 't3' in req[0] :
+        if base['Отметка о прохождении теста'][iDM] != "Пройдено":
+            for i in range(1, len(base)):
+                if call.message.chat.id == base['ID'][i]:
+                    iDM = i
+            # Получаем ответ на вопрос
+            if req[0] == 't3v1': answer = "1"
+            if req[0] == 't3v2': answer = "2"
+            if req[0] == 't3v3': answer = "3"
+            if req[0] == 't3v4': answer = "4"
+            # Если ответ правильный, то присваиваем балл
+            if str(base['Ответ 3'][0]) == answer: base['Итого баллов?'][iDM] += 1
+            base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+            base = pd.read_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+            del (base['Unnamed: 0'])
+            # Если тест пройден, то
+            if int(float(base["Итого баллов?"][iDM]) * 100 / 3) > 50:
+                base['Отметка о прохождении теста'][iDM] = "Пройдено"
+                base.to_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
+                bot.send_message(call.message.chat.id,
+                                 f'Вы сдали тест на :{int(float(base["Итого баллов?"][iDM]) * 100 / 3)}%. \n Теперь вы можете приступить к выполнению домашнего задания.')
+                for i in range(1, len(base)):
+                    if base['Группа'][i] == 'Преподаватель':
+                        bot.send_message(base['ID'][i],
+                                         text=f"Ученик {base['Участники курса'][iDM]} прошел тест с баллом {int(float(base['Итого баллов?'][iDM]) * 100 / 3)}%.")
+            # Если тест не пройден, то
+            else:
+                bot.send_message(call.message.chat.id,
+                                 f'Вы не прошли тест. Обратитесь к преподавателю.')
+                for i in range(1, len(base)):
+                    if base['Группа'][i] == 'Преподаватель':
+                        bot.send_message(base['ID'][i],
+                                         text=f"Ученик {base['Участники курса'][iDM]} не прошел тест")
+        else:
+            bot.send_message(call.message.chat.id,
+                             text='Внимание! Без разрешения преподавателя проходить тест повторно запрещено!')
 
     # Если это один из видов рефлексии, то
     elif req[0] == 'course' or req[0] == 'communic' or req[0] == 'general':
