@@ -92,3 +92,13 @@ async def update_copy_parametr_google_sheets(table_name, base, idM, group):
     sheet.update_cell(idM + 2, 14, base['Ответ 3'][0])
     sheet.update_cell(idM + 2, 17, base['Дата домашнего задания'][0])
     sheet.update_cell(idM + 2, 18, base['Домашнее задание'][0])
+
+async def perfomance_google_sheets(df):
+    scope = ['https://www.googleapis.com/auth/spreadsheets', "https://www.googleapis.com/auth/drive"]
+    creds = ServiceAccountCredentials.from_json_keyfile_name('cbappoitment-5965445a13a2.json', scope)
+    client = gspread.authorize(creds)
+    sheet = client.open('Unit').worksheet('Performance')
+
+    sheet.clear()
+    sheet.update([df.columns.values.tolist()] + df.values.tolist())
+

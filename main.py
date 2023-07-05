@@ -7,11 +7,12 @@ from aiogram import Bot, Dispatcher, executor, types
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from SQL import db_start, all_table_from_db, rename_start_from_db, mailing_from_db, del_person_db, jobreload_from_db, \
     new_row_from_db
-from quickstart import  update_parametr_google_sheets, delete_person_google_sheets
+from quickstart import  update_parametr_google_sheets, delete_person_google_sheets, perfomance_google_sheets, read_table_google_sheets
 import aioschedule
 import asyncio
 from googleDrive import upload_to_drive
 from staticParametr import static_parametr
+from performonitoring import performance_monitoring
 
 
 
@@ -34,6 +35,7 @@ async def job():
     # Подгружаем базу
     base = await all_table_from_db('Unit')
     # print(base)
+
     # Работа по отправке видео. Если текущая дата совпадает с датой из таблицы, то
     if datetime.today().strftime('%Y-%m-%d %H:%M') == base['Дата'][0]:
         # Перебираем всех НЕ преподавателей и отправляем им видео
@@ -121,7 +123,7 @@ async def job():
 #
 # Контроллер, который выполняет работу каждую минуту
 async def scheduler():
-    print(0)
+    # print(0)
     aioschedule.every(1).minutes.do(job)
     while True:
         await aioschedule.run_pending()
@@ -138,6 +140,37 @@ async def scheduler():
 #     base = pd.read_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
 #     del (base['Unnamed: 0'])
 
+@bot.message_handler(commands=['grade_synchronization'])
+async def start_message(message):
+    #Получение списка оценок учеников с гугл диска
+    base = await all_table_from_db('Unit')
+    if base[base['user_ID'] == str(message.chat.id)]['Группа'].values[0] == "Преподаватель":
+        df = await performance_monitoring()
+        # print(df)
+        await perfomance_google_sheets(df)
+        await botMes.send_message(message.chat.id, text='Перейдите по ссылке, чтобы сверить оценки: https://docs.google.com/spreadsheets/d/1ZhNTjrrJF3NTNqAMcRK497vjR5JHzxAblerf1qS4DYY/edit?usp=sharing \n После выставления оценок воспользуйтесь тегом /put_down_marks, чтобы оценки были внесены в таблицу')
+    else:
+        await botMes.send_message(message.chat.id, text='Ученик не может воспользоваться этой функцией')
+
+
+@bot.message_handler(commands=['put_down_marks'])
+async def start_message(message):
+    #Получение списка оценок учеников с гугл диска
+    base = await all_table_from_db('Unit')
+    if base[base['user_ID'] == str(message.chat.id)]['Группа'].values[0] == "Преподаватель":
+        performance = await read_table_google_sheets('Unit', 'Performance')
+        unit = await read_table_google_sheets('Unit', 'Unit')
+        for i in range(0, len(performance)):
+            for j in range(1, len(unit)):
+                # print(performance['name'][i].replace(' ', ''), ", ", unit['Участники курса'][j].replace(' ', ''), ", ", performance['name'][i].replace(' ', '') == unit['Участники курса'][j].replace(' ', ''))
+                if performance['name'][i].replace(' ', '') == unit['Участники курса'][j].replace(' ', ''):
+                    await jobreload_from_db("Unit", "Отметка за ДЗ", base['user_ID'][j], performance['folder'][j])
+                    await update_parametr_google_sheets('Unit', j + 2, 20, performance['folder'][j])
+                    unit['Отметка за ДЗ'][i] = performance['folder'][j]
+        # unit.to_excel(os.path.abspath('un.xlsx'))
+        await botMes.send_message(message.chat.id, text='Оценки выставлены!')
+    else:
+        await botMes.send_message(message.chat.id, text='Ученик не может воспользоваться этой функцией')
 
 
 # Если преподаватель хочет отправить массовый комментарий, то
@@ -427,7 +460,7 @@ async def next_message(message):
                         # Дозаписываем данные и сохраняем таблицу
                         group = message.text
                         # try:
-                        base = await static_parametr(base, idM, group)
+
                         # except:
                         #     pass
 
@@ -441,6 +474,7 @@ async def next_message(message):
                                          'перезагрузить домашнюю работу - воспользуйтесть тегом /jobreload. Если вы захотите оставить рефлексию - воспользуйтесь тегом /reflection. '
                                          'Если вы хотите вспомнить, какие теги за что отвечают, то воспользуйтесь тегом /help \n '
                                          'Желаю успешной учебы!')
+                        base = await static_parametr(base, idM, group)
                     # elif base['Группа'][idM] is None or base['Группа'][idM] == "":
                     #     await botMes.send_message(message.chat.id, 'Вы пытаетесь повторно внести название группы! Для перерегистрации нажмите тег /reregistration')
                 # else: idM=0
@@ -489,7 +523,7 @@ async def callback_query(callback: types.CallbackQuery):
             iDM = i
     # Если выбранная группа - ученик, то
     if req[0] == 'but2':
-        await botMes.send_message(call.message.chat.id, 'Введите вашу группу (Внимание! Бот может обработать ответ с задержкой в несколько секунд):')
+        await botMes.send_message(call.message.chat.id, 'Введите вашу группу:')
     # Если нажата кнопка прохождения теста
     elif req[0] == 'testr':
         # Ищем человека в базе и, в его строку, вносим пометку о просмотре видео
