@@ -13,6 +13,7 @@ async def db_start(): #Создание БД
     result = cur.fetchone()
     if result is None:
         # data = read_table_google_sheets("Чат-бот встреча", sheet_name)
+        print(1)
         data = await read_table_google_sheets("Unit", sheet_name)
         data['user_ID'] = ""
         # data['help_request'] = ""
@@ -68,3 +69,9 @@ async def new_row_from_db(table_name_db, name, user_ID):
     cur.execute(sql_update_query)
     db.commit()
 
+
+async def delete_and_create_table(google_db):
+    # Указываем название базы данных
+    # cur.execute("DROP TABLE IF EXISTS Unit;")
+    # db.commit()
+    google_db.to_sql('Unit', sq.connect('reservists.db'), if_exists='replace', index=False)

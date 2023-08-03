@@ -1,4 +1,5 @@
-import emoji
+#!/srv/reservists/env/bin/python3
+
 from datetime import timedelta
 import datetime
 from datetime import datetime
@@ -6,7 +7,7 @@ import os
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from SQL import db_start, all_table_from_db, rename_start_from_db, mailing_from_db, del_person_db, jobreload_from_db, \
-    new_row_from_db
+    new_row_from_db, delete_and_create_table
 from quickstart import  update_parametr_google_sheets, delete_person_google_sheets, perfomance_google_sheets, read_table_google_sheets
 import aioschedule
 import asyncio
@@ -14,6 +15,7 @@ from googleDrive import upload_to_drive
 from staticParametr import static_parametr
 from performonitoring import performance_monitoring
 
+#pip freeze > requirements.txt
 
 
 #Подключаемся к боту
@@ -32,95 +34,113 @@ async def on_startup(_):
 # ------------------------------------------------------------------------------------------------------------------------
 # Создаем обработчик, который отправляет видео в заданное время
 async def job():
-    # Подгружаем базу
-    base = await all_table_from_db('Unit')
-    # print(base)
-    # print(0)
-    # Работа по отправке видео. Если текущая дата совпадает с датой из таблицы, то
-    if datetime.today().strftime('%Y-%m-%d %H:%M') == base['Дата'][0]:
+    df = await all_table_from_db('Unit')
+    if len(df[df['user_ID'] != ""]['user_ID'].values) > 0: #Проверка на наличие записей в БД
+        # Подгружаем базу
+        base = await all_table_from_db('Unit')
         # print(1)
+        # Работа по отправке видео. Если текущая дата совпадает с датой из таблицы, то
+        # print(datetime.today().strftime('%Y-%m-%d %H:%M') == base['Дата'][0])
+        # print(datetime.today().strftime('%Y-%m-%d %H:%M'))
+        # print(base['Дата'][0])
+        if datetime.today().strftime('%Y-%m-%d %H:%M') == base['Дата'][0]:
+            # print(base['Дата'][0])
+            # Перебираем всех НЕ преподавателей и отправляем им видео
+            for i in range(1, len(base)):
+                if base['Группа'][i] != 'Преподаватель' and base['user_ID'][i] != '':
+                    await botMes.send_message(int(base['user_ID'][i]),
+                                              f'Посмотрите видео и пройдите тест. \n {base["Видео"][0]}',
+                                              parse_mode=types.ParseMode.HTML)
+                elif base['Группа'][i] == 'Преподаватель':
+                    await botMes.send_message(int(base['user_ID'][i]), text=f"Видео открыто для просмотра.")
+        # Работа по отправке теста. Определяем время отправки теста, с учетом длительности видео
+        mint = datetime.strptime(str(base['Дата'][0]), '%Y-%m-%d %H:%M') + timedelta(
+            minutes=int(base['Продолжительность (мин)'][0]))
+        # Если текущие дата, время совпадает с расчетной отправкой теста, то
+        if datetime.today().strftime('%Y-%m-%d %H:%M') == mint.strftime('%Y-%m-%d %H:%M'):
+            # Перебираем всех НЕ преподавателей и высылаем кнопку на прохождение теста
+            for i in range(1, len(base)):
+                if base['Группа'][i] != 'Преподаватель' and base['user_ID'][i] != '':
+                    markup = InlineKeyboardMarkup()
+                    markup.add(InlineKeyboardButton(text='Пройти тест', callback_data='testr'))
+                    await botMes.send_message(int(base['user_ID'][i]),
+                                              text=f"Для начала тестирования нажмите на кнопку: ", reply_markup=markup)
+                elif base['Группа'][i] == 'Преподаватель':
+                    await botMes.send_message(int(base['user_ID'][i]), text=f"Тест открыт для прохождения.")
+        # Отправка домашнего задания
+        if datetime.today().strftime('%Y-%m-%d %H:%M') == base['Дата домашнего задания'][0]:
+            # Перебираем всех НЕ преподавателей и отправляем им видео
+            for i in range(1, len(base)):
+                if base['Группа'][i] != 'Преподаватель' and base['user_ID'][i] != '':
+                    await botMes.send_message(int(base['user_ID'][i]),
+                                              text=f'Домашнее задание: \n {base["Домашнее задание"][0]}',
+                                              parse_mode=types.ParseMode.HTML)
+                    await botMes.send_message(int(base['user_ID'][i]),
+                                              'Для отправки домашнего задания боту - просто отправьте файл боту. \n Внимание! Файл должен иметь расширение docx! Если вы хотите перезаписать файл, то воспользуйтесь тегом /jobreload',
+                                              parse_mode=types.ParseMode.HTML)
+                elif base['Группа'][i] == 'Преподаватель':
+                    await botMes.send_message(int(base['user_ID'][i]), text=f"Домашнее задание открыто для учеников.")
+        if base['Даты начала и конца блока'][0] != "start":
+            for i in range(1, len(base)):
+                if base['user_ID'][i] != '':
+                    await botMes.send_message(int(base['user_ID'][i]),
+                                              text=f"Инициирован {base['Блок: Начало'][1]}. ")
+                    base['Даты начала и конца блока'][0] = "start"
+                    await rename_start_from_db('Unit')
+                    await update_parametr_google_sheets('Unit', 2, 4, 'Start')
+        # Бежим по столбцу комментариев. Если он есть, то отправить всем ученикам и стереть, преподавателя предупредить
+        for a in range(1, len(base)):
+            if not str(base['Комментарий'][a]) is None and str(base['Комментарий'][a]) != "" and str(
+                    base['Комментарий'][a]) != " " and str(base['Комментарий'][a]) != "comm":
+                for j in range(1, len(base)):
+                    if str(base['Группы рассылки'][a]) != 'Все':
+                        if (base['Группа'][j] != "Преподаватель" and (str(base['Группа'][j])) in str(
+                                base['Группы рассылки'][a]))  and base['user_ID'][j] != '':
+                            await botMes.send_message(int(base['user_ID'][j]), text=base['Комментарий'][a])
+                        if base['Группа'][j] == "Преподаватель"  and base['user_ID'][j] != '':
+                            await botMes.send_message(int(base['user_ID'][j]), text='Сообщение отправлено')
+                    else:
+                        if base['Группа'][j] != "Преподаватель"  and base['user_ID'][j] != '':
+                            await botMes.send_message(int(base['user_ID'][j]), text=base['Комментарий'][a])
+                        if base['Группа'][j] == "Преподаватель"  and base['user_ID'][j] != '':
+                            await botMes.send_message(int(base['user_ID'][j]), text='Сообщение отправлено')
+                base['Комментарий'][a] = ""
+                await mailing_from_db('Unit', '`Комментарий`', base['user_ID'][a])
+                await update_parametr_google_sheets('Unit', a, 24, '')
+                base['Группы рассылки'][a] = ""
+                await mailing_from_db('Unit', '`Группы рассылки`', base['user_ID'][a])
+                await update_parametr_google_sheets('Unit', a, 25, '')
+        #
+        # отправка оповещений ученикам
+        dtC1 = 15  # первый контроль (через 15 дней)
+        dtC2 = 27  # второй контроль (через 27 дней)
+        # Работа по отправке оповещения. Если текущая дата совпадает с датой из таблицы, то
         # Перебираем всех НЕ преподавателей и отправляем им видео
-        for i in range(1, len(base)):
-            if base['Группа'][i] != 'Преподаватель':
-                await botMes.send_message(int(base['user_ID'][i]), f'Посмотрите видео и пройдите тест. \n {base["Видео"][0]}', parse_mode=types.ParseMode.HTML)
-            elif base['Группа'][i] == 'Преподаватель':
-                await botMes.send_message(int(base['user_ID'][i]), text=f"Видео открыто для просмотра.")
-    # Работа по отправке теста. Определяем время отправки теста, с учетом длительности видео
-    mint = datetime.strptime(str(base['Дата'][0]), '%Y-%m-%d %H:%M')+ timedelta(minutes=int(base['Продолжительность (мин)'][0]))
-    # Если текущие дата, время совпадает с расчетной отправкой теста, то
-    if datetime.today().strftime('%Y-%m-%d %H:%M') == mint.strftime('%Y-%m-%d %H:%M'):
-        # Перебираем всех НЕ преподавателей и высылаем кнопку на прохождение теста
-        for i in range(1, len(base)):
-            if base['Группа'][i] != 'Преподаватель':
-                markup = InlineKeyboardMarkup()
-                markup.add(InlineKeyboardButton(text='Пройти тест', callback_data='testr'))
-                await botMes.send_message(int(base['user_ID'][i]), text=f"Для начала тестирования нажмите на кнопку: ", reply_markup=markup)
-            elif base['Группа'][i] == 'Преподаватель':
-                await botMes.send_message(int(base['user_ID'][i]), text=f"Тест открыт для прохождения.")
-    # Отправка домашнего задания
-    if datetime.today().strftime('%Y-%m-%d %H:%M') == base['Дата домашнего задания'][0]:
-        # Перебираем всех НЕ преподавателей и отправляем им видео
-        for i in range(1, len(base)):
-            if base['Группа'][i] != 'Преподаватель':
-                await botMes.send_message(int(base['user_ID'][i]), text=f'Домашнее задание: \n {base["Домашнее задание"][0]}', parse_mode=types.ParseMode.HTML)
-                await botMes.send_message(int(base['user_ID'][i]), 'Для отправки домашнего задания боту - просто отправьте файл боту. \n Внимание! Файл должен иметь расширение docx! Если вы хотите перезаписать файл, то воспользуйтесь тегом /jobreload', parse_mode=types.ParseMode.HTML)
-            elif base['Группа'][i] == 'Преподаватель':
-                await botMes.send_message(int(base['user_ID'][i]), text=f"Домашнее задание открыто для учеников.")
-    if base['Даты начала и конца блока'][0] != "start":
-        for i in range(1, len(base)):
-            await botMes.send_message(int(base['user_ID'][i]), text=f"Инициирован {base['Блок: Начало'][1]}. Даты начала и конца блока: {base['Даты начала и конца блока'][1]}.")
-            base['Даты начала и конца блока'][0] = "start"
-            await rename_start_from_db('Unit')
-            await update_parametr_google_sheets('Unit', 2, 4, 'Start')
-    # Бежим по столбцу комментариев. Если он есть, то отправить всем ученикам и стереть, преподавателя предупредить
-    for a in range(1, len(base)):
-        if not str(base['Комментарий'][a]) is None and str(base['Комментарий'][a]) != "" and str(base['Комментарий'][a]) != " " and str(base['Комментарий'][a]) != "comm":
-            for j in range(1, len(base)):
-                if str(base['Группы рассылки'][a]) != 'Все':
-                    if (base['Группа'][j] != "Преподаватель" and (str(base['Группа'][j])) in str(base['Группы рассылки'][a])):
-                        await botMes.send_message(int(base['user_ID'][j]), text=base['Комментарий'][a])
-                    if base['Группа'][j] == "Преподаватель":
-                        await botMes.send_message(int(base['user_ID'][j]), text='Сообщение отправлено')
-                else:
-                    if base['Группа'][j] != "Преподаватель":
-                        await botMes.send_message(int(base['user_ID'][j]), text=base['Комментарий'][a])
-                    if base['Группа'][j] == "Преподаватель":
-                        await botMes.send_message(int(base['user_ID'][j]), text='Сообщение отправлено')
-            base['Комментарий'][a] = ""
-            await mailing_from_db('Unit', '`Комментарий`', base['user_ID'][a])
-            await update_parametr_google_sheets('Unit', a, 24, '')
-            base['Группы рассылки'][a] = ""
-            await mailing_from_db('Unit', '`Группы рассылки`', base['user_ID'][a])
-            await update_parametr_google_sheets('Unit', a, 25, '')
-#
-    # отправка оповещений ученикам
-    dtC1 = 15  # первый контроль (через 15 дней)
-    dtC2 = 27  # второй контроль (через 27 дней)
-    # Работа по отправке оповещения. Если текущая дата совпадает с датой из таблицы, то
-    # Перебираем всех НЕ преподавателей и отправляем им видео
 
-    dt1 = datetime.today() + timedelta(days=dtC1)  # к текущей дате добавляем 15 дней
-    dt2 = datetime.today() + timedelta(days=dtC2)  # к текущей дате добавляем 27 дней
-    # отослать оповещение о необходимости тестирования и сдачи ДЗ
-    # В поле 'Дата' - дата предоставления теста
-    if (dt1.strftime('%Y-%m-%d %H:%M') == base['Дата'][0]) or (dt2.strftime('%Y-%m-%d %H:%M') == base['Дата'][0]):
-        # пора напомнить о тестировании
-        for i in range(1, len(base)):
-            # Перебираем всех НЕ преподавателей
-            if (base['Группа'][i] != 'Преподаватель') and (base['Отметка о прохождении теста'][i] != 'Пройдено'):
-                await botMes.send_message(int(base['user_ID'][i]),
-                                    text='Уважаемый ' + base['Участники курса'][i] + ", пройти тест необходимо до " +
-                                        base['Дата'][0])
-    # В поле 'Дата домашнего задания' - дата предоставления ДЗ
-    if (dt1.strftime('%Y-%m-%d %H:%M') == base['Дата домашнего задания'][0]) or (
-            dt2.strftime('%Y-%m-%d %H:%M') == base['Дата домашнего задания'][0]):
-        for i in range(1, len(base)):
-            # Перебираем всех НЕ преподавателей
-            if (base['Группа'][i] != 'Преподаватель') and ((base['Отметка об отправке ДЗ'][i] != 'Загружено') and (
-                    base['Отметка об отправке ДЗ'][i] != 'Перезагружено')):
-                await botMes.send_message(int(base['user_ID'][i]),
-                                    text='Уважаемый ' + base['Участники курса'][i] + ", Необходимо сдать ДЗ " +
-                                        base['Дата домашнего задания'][0])
+        dt1 = datetime.today() + timedelta(days=dtC1)  # к текущей дате добавляем 15 дней
+        dt2 = datetime.today() + timedelta(days=dtC2)  # к текущей дате добавляем 27 дней
+        # отослать оповещение о необходимости тестирования и сдачи ДЗ
+        # В поле 'Дата' - дата предоставления теста
+        if (dt1.strftime('%Y-%m-%d %H:%M') == base['Дата'][0]) or (dt2.strftime('%Y-%m-%d %H:%M') == base['Дата'][0]):
+            # пора напомнить о тестировании
+            for i in range(1, len(base)):
+                # Перебираем всех НЕ преподавателей
+                if (base['Группа'][i] != 'Преподаватель') and (base['Отметка о прохождении теста'][i] != 'Пройдено')  and base['user_ID'][i] != '':
+                    await botMes.send_message(int(base['user_ID'][i]),
+                                              text='Уважаемый ' + base['Участники курса'][
+                                                  i] + ", пройти тест необходимо до " +
+                                                   base['Дата'][0])
+        # В поле 'Дата домашнего задания' - дата предоставления ДЗ
+        if (dt1.strftime('%Y-%m-%d %H:%M') == base['Дата домашнего задания'][0]) or (
+                dt2.strftime('%Y-%m-%d %H:%M') == base['Дата домашнего задания'][0]):
+            for i in range(1, len(base)):
+                # Перебираем всех НЕ преподавателей
+                if (base['Группа'][i] != 'Преподаватель') and ((base['Отметка об отправке ДЗ'][i] != 'Загружено') and (
+                        base['Отметка об отправке ДЗ'][i] != 'Перезагружено')) and base['user_ID'][i] != '':
+                    await botMes.send_message(int(base['user_ID'][i]),
+                                              text='Уважаемый ' + base['Участники курса'][
+                                                  i] + ", Необходимо сдать ДЗ " +
+                                                   base['Дата домашнего задания'][0])
 #
 # Контроллер, который выполняет работу каждую минуту
 async def scheduler():
@@ -135,11 +155,26 @@ async def scheduler():
 # ------------------------------------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------------------------------
-# # Инициирование нового блока
-# @bot.message_handler(commands=['massmessage'])
-# def start_message(message, ):
-#     base = pd.read_excel("C:/Users/50AdmNsk/PycharmProjects/Chat-bot-reservists/testBase.xlsx")
-#     del (base['Unnamed: 0'])
+# Обновить базу данных
+@bot.message_handler(commands=['update_table'])
+async def start_message(message):
+    sql_db = await all_table_from_db('Unit')
+    # print(sql_db[sql_db['user_ID'] == str(message.chat.id)]['Группа'].values[0])
+    if sql_db[sql_db['user_ID'] == str(message.chat.id)]['Группа'].values[0] == 'Преподаватель':
+        google_db = await read_table_google_sheets('Unit', 'Unit')
+        google_db['user_ID'] = ''
+        for i in range(0, len(sql_db)):
+            for j in range(0, len(google_db)):
+                if google_db['Участники курса'][j] == sql_db['Участники курса'][i]:
+                    google_db['user_ID'][j] = sql_db['user_ID'][i]
+        await update_parametr_google_sheets('Unit', 1, 24, 'Комментарий')
+        await update_parametr_google_sheets('Unit', 1, 25, 'Группы рассылки')
+        await delete_and_create_table(google_db)
+        await botMes.send_message(message.chat.id, text='База данных успешно обновлена!')
+    else:
+        await botMes.send_message(message.chat.id, text='Обновить базу данных может только преподаватель!')
+
+
 
 @bot.message_handler(commands=['grade_synchronization'])
 async def start_message(message):
@@ -328,10 +363,10 @@ async def start_message(message):
                          "Вы уже зарегистрированы! Для перерегистрации нажмите /reregistration")
     # Если пользователь регистрируется первый раз, то
     else:
-        await botMes.send_message(message.chat.id, emoji.emojize(
-            "Добрый день!:hand_with_fingers_splayed: Давайте начнем учиться! Для этого вы должны зарегистрироваться."))
         await botMes.send_message(message.chat.id,
-                         emoji.emojize("Введите ваши фамилию, имя и отчество: :magnifying_glass_tilted_left:"))
+            "Добрый день! \nДавайте начнем учиться! \nДля этого вы должны зарегистрироваться.")
+        await botMes.send_message(message.chat.id,
+                         "Введите ваши фамилию, имя и отчество: ")
 
 # ----------------------------------------------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------------------------------------------
