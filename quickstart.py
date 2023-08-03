@@ -98,7 +98,9 @@ async def perfomance_google_sheets(df):
     creds = ServiceAccountCredentials.from_json_keyfile_name('cbappoitment-5965445a13a2.json', scope)
     client = gspread.authorize(creds)
     sheet = client.open('Unit').worksheet('Performance')
-
     sheet.clear()
-    sheet.update([df.columns.values.tolist()] + df.values.tolist())
+    try:
+        sheet.update([df.columns.values.tolist()] + df.values.tolist())
+    except:
+        pass
 

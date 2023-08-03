@@ -42,5 +42,8 @@ async def performance_monitoring():
         df = df1
     elif len(df) >= 1 and len(df1) >= 1:
         df = pd.concat([df, df1], ignore_index=True)
-    df['name'] = df['name'].str.replace('.docx', '')
+    try:
+        df['name'] = df['name'].str.replace('.docx', '')
+    except:
+        pass
     return df

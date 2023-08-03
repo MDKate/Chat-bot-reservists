@@ -35,9 +35,10 @@ async def job():
     # Подгружаем базу
     base = await all_table_from_db('Unit')
     # print(base)
-
+    # print(0)
     # Работа по отправке видео. Если текущая дата совпадает с датой из таблицы, то
     if datetime.today().strftime('%Y-%m-%d %H:%M') == base['Дата'][0]:
+        # print(1)
         # Перебираем всех НЕ преподавателей и отправляем им видео
         for i in range(1, len(base)):
             if base['Группа'][i] != 'Преподаватель':
@@ -158,17 +159,23 @@ async def start_message(message):
     #Получение списка оценок учеников с гугл диска
     base = await all_table_from_db('Unit')
     if base[base['user_ID'] == str(message.chat.id)]['Группа'].values[0] == "Преподаватель":
-        performance = await read_table_google_sheets('Unit', 'Performance')
-        unit = await read_table_google_sheets('Unit', 'Unit')
-        for i in range(0, len(performance)):
-            for j in range(1, len(unit)):
-                # print(performance['name'][i].replace(' ', ''), ", ", unit['Участники курса'][j].replace(' ', ''), ", ", performance['name'][i].replace(' ', '') == unit['Участники курса'][j].replace(' ', ''))
-                if performance['name'][i].replace(' ', '') == unit['Участники курса'][j].replace(' ', ''):
-                    await jobreload_from_db("Unit", "Отметка за ДЗ", base['user_ID'][j], performance['folder'][j])
-                    await update_parametr_google_sheets('Unit', j + 2, 20, performance['folder'][j])
-                    unit['Отметка за ДЗ'][i] = performance['folder'][j]
-        # unit.to_excel(os.path.abspath('un.xlsx'))
-        await botMes.send_message(message.chat.id, text='Оценки выставлены!')
+        try:
+            performance = await read_table_google_sheets('Unit', 'Performance')
+            unit = await read_table_google_sheets('Unit', 'Unit')
+            for i in range(0, len(performance)):
+                for j in range(1, len(unit)):
+                    # print(performance['name'][i].replace(' ', ''), ", ", unit['Участники курса'][j].replace(' ', ''), ", ", performance['name'][i].replace(' ', '') == unit['Участники курса'][j].replace(' ', ''))
+                    if performance['name'][i].replace(' ', '') == unit['Участники курса'][j].replace(' ', ''):
+                        # print(i)
+                        await jobreload_from_db("Unit", "Отметка за ДЗ", base['user_ID'][j], performance['folder'][i])
+                        await update_parametr_google_sheets('Unit', j + 2, 20, performance['folder'][i])
+                        unit['Отметка за ДЗ'][i] = performance['folder'][i]
+                        await botMes.send_message(base['user_ID'][j], text='Ваша оценка за домашнее задание: ' + performance['folder'][i])
+            # unit.to_excel(os.path.abspath('un.xlsx'))
+            # print(message.chat.id)
+            await botMes.send_message(message.chat.id, text='Оценки выставлены!')
+        except:
+            await botMes.send_message(message.chat.id, text='Вы пытаетесь обработать пустую таблицу!')
     else:
         await botMes.send_message(message.chat.id, text='Ученик не может воспользоваться этой функцией')
 
@@ -369,15 +376,15 @@ async def next_message(message):
         if "Открыть тест:" in message.text:
             text = (message.text).split()
             grp = text[-1]
-            print(text)
-            print(grp)
+            # print(text)
+            # print(grp)
             nam=""
             for r in range(1, len(text)-2):
                 nam = nam + text[1+r] + " "
-                print(nam)
+                # print(nam)
             for f in range(1, len(base)):
-                print(base['Участники курса'][f] in nam)
-                print(str(base['Группа'][f]) == grp)
+                # print(base['Участники курса'][f] in nam)
+                # print(str(base['Группа'][f]) == grp)
                 if base['Участники курса'][f] in nam and str(base['Группа'][f]) == grp:
                     base['Отметка о прохождении теста'] = ""
                     await jobreload_from_db("Unit", 'Отметка о прохождении теста', base['user_ID'][f], "")
@@ -439,7 +446,7 @@ async def next_message(message):
 
     # Если пользователь еще не зарегистрирован, то
     if control==0 :
-        print(1111)
+        # print(1111)
         idM = base[base['user_ID'] == str(message.chat.id)]
         # Проверяем, зарегистрировал ли человек имя и, если да, то определяем, где его строчка в таблице
         base = await all_table_from_db('Unit')
@@ -456,7 +463,7 @@ async def next_message(message):
                     # Если пользователь ввел имя и группу, то
                     # print(len(base['Группа'][idM]))
                     if (base['Группа'][idM] is None or base['Группа'][idM] == "") and (not str(base['Участники курса'][idM]) is None and str(base['Участники курса'][idM]) != "" and str(base['Участники курса'][idM]) != " "):
-                        print(2222)
+                        # print(2222)
                         # Дозаписываем данные и сохраняем таблицу
                         group = message.text
                         # try:
@@ -468,11 +475,11 @@ async def next_message(message):
 
                         await botMes.send_message(message.chat.id, 'Отлично! Давайте приступим к работе!')
                         await botMes.send_message(message.chat.id,
-                                         'Для начала, необходимо ознакомиться с некоторыми правилами. \n У вас есть несколько учебных блоков, '
-                                         'к каждому из которых есть обязательное задание. Блок состоит из обучающего видео, проверочного теста и домашнего задания. \n '
-                                         'Выполняйте все задания в срок! \n Иногда вам будут приходить напоминания, что пора приступить к работе и сообщения от преподавателя. Если вы захотите '
-                                         'перезагрузить домашнюю работу - воспользуйтесть тегом /jobreload. Если вы захотите оставить рефлексию - воспользуйтесь тегом /reflection. '
-                                         'Если вы хотите вспомнить, какие теги за что отвечают, то воспользуйтесь тегом /help \n '
+                                         'Для начала, необходимо ознакомиться с некоторыми правилами. \nУ вас есть несколько учебных блоков, '
+                                         'к каждому из которых есть обязательное задание. \nБлок состоит из обучающего видео, проверочного теста и домашнего задания. \n'
+                                         'Выполняйте все задания в срок! \nИногда вам будут приходить напоминания, что пора приступить к работе и сообщения от преподавателя. \nЕсли вы захотите '
+                                         'перезагрузить домашнюю работу - воспользуйтесть тегом /jobreload. \nЕсли вы захотите оставить рефлексию - воспользуйтесь тегом /reflection. '
+                                         '\nЕсли вы хотите вспомнить, какие теги за что отвечают, то воспользуйтесь тегом /help \n'
                                          'Желаю успешной учебы!')
                         base = await static_parametr(base, idM, group)
                     # elif base['Группа'][idM] is None or base['Группа'][idM] == "":
@@ -514,7 +521,7 @@ async def next_message(message):
 async def callback_query(callback: types.CallbackQuery):
     call = callback
     req = call.data.split('_')
-    print(req[0])
+    # print(req[0])
     # Считываем таблицу
     base = await all_table_from_db('Unit')
     iDM = base[base['user_ID'] == str(call.message.chat.id)]
@@ -567,11 +574,6 @@ async def callback_query(callback: types.CallbackQuery):
             if req[0] == 't1v2': answer = "2"
             if req[0] == 't1v3': answer = "3"
             if req[0] == 't1v4': answer = "4"
-            # Если ответ верен, то присваиваем балл
-            if str(base['Ответ 1'][0]) == answer:
-                base['Итого баллов?'][iDM] = int(base['Итого баллов?'][iDM])+1
-                await jobreload_from_db("Unit", 'Итого баллов?', base['user_ID'][iDM], str(int(base['Итого баллов?'][iDM])))
-                await update_parametr_google_sheets('Unit', iDM + 2, 15, str(int(base['Итого баллов?'][iDM])))
             # Создаем кнопки для второго вопроса
             question = base['Тест 2'][0]
             buttons = InlineKeyboardMarkup()
@@ -579,7 +581,13 @@ async def callback_query(callback: types.CallbackQuery):
             buttons.add(InlineKeyboardButton(text='2', callback_data='t2v2'))
             buttons.add(InlineKeyboardButton(text='3', callback_data='t2v3'))
             buttons.add(InlineKeyboardButton(text='4', callback_data='t2v4'))
-            await botMes.send_message(call.message.chat.id, text=str(question), reply_markup=buttons)
+            await botMes.edit_message_text(text=str(question), chat_id=call.message.chat.id,  reply_markup=buttons, message_id=call.message.message_id)
+            # Если ответ верен, то присваиваем балл
+            if str(base['Ответ 1'][0]) == answer:
+                base['Итого баллов?'][iDM] = int(base['Итого баллов?'][iDM]) + 1
+                await jobreload_from_db("Unit", 'Итого баллов?', base['user_ID'][iDM],
+                                        str(int(base['Итого баллов?'][iDM])))
+                await update_parametr_google_sheets('Unit', iDM + 2, 15, str(int(base['Итого баллов?'][iDM])))
         else:
             await botMes.send_message(call.message.chat.id,
                              text='Внимание! Без разрешения преподавателя проходить тест повторно запрещено!')
@@ -595,11 +603,6 @@ async def callback_query(callback: types.CallbackQuery):
             if req[0] == 't2v2': answer = "2"
             if req[0] == 't2v3': answer = "3"
             if req[0] == 't2v4': answer = "4"
-            # Если ответ правильный, то присваиваем балл
-            if str(base['Ответ 2'][0]) == answer:
-                base['Итого баллов?'][iDM] = int(base['Итого баллов?'][iDM]) + 1
-                await jobreload_from_db("Unit", 'Итого баллов?', base['user_ID'][iDM], str(int(base['Итого баллов?'][iDM])))
-                await update_parametr_google_sheets('Unit', iDM + 2, 15, str(int(base['Итого баллов?'][iDM])))
             # Создаем третий вопрос
             question = base['Тест 3'][0]
             buttons = InlineKeyboardMarkup()
@@ -607,7 +610,13 @@ async def callback_query(callback: types.CallbackQuery):
             buttons.add(InlineKeyboardButton(text='2', callback_data='t3v2'))
             buttons.add(InlineKeyboardButton(text='3', callback_data='t3v3'))
             buttons.add(InlineKeyboardButton(text='4', callback_data='t3v4'))
-            await botMes.send_message(call.message.chat.id, text=str(question), reply_markup=buttons)
+            await botMes.edit_message_text(text=str(question), chat_id=call.message.chat.id,  reply_markup=buttons, message_id=call.message.message_id)
+            # Если ответ правильный, то присваиваем балл
+            if str(base['Ответ 2'][0]) == answer:
+                base['Итого баллов?'][iDM] = int(base['Итого баллов?'][iDM]) + 1
+                await jobreload_from_db("Unit", 'Итого баллов?', base['user_ID'][iDM],
+                                        str(int(base['Итого баллов?'][iDM])))
+                await update_parametr_google_sheets('Unit', iDM + 2, 15, str(int(base['Итого баллов?'][iDM])))
         else:
             await botMes.send_message(call.message.chat.id,
                              text='Внимание! Без разрешения преподавателя проходить тест повторно запрещено!')
@@ -632,17 +641,20 @@ async def callback_query(callback: types.CallbackQuery):
             # Если тест пройден, то
             if int(float(base["Итого баллов?"][iDM]) * 100 / 3) > 50:
                 base['Отметка о прохождении теста'][iDM] = "Пройдено"
+                await jobreload_from_db("Unit", 'Отметка о прохождении теста', base['user_ID'][iDM], 'Пройдено')
+                # print(iDM)
+                await update_parametr_google_sheets('Unit', iDM + 2, 16, 'Пройдено')
                 base = await all_table_from_db('Unit')
-                await botMes.send_message(call.message.chat.id,
-                                 f'Вы сдали тест на :{int(float(base["Итого баллов?"][iDM]) * 100 / 3)}%. \n Теперь вы можете приступить к выполнению домашнего задания.')
+                await botMes.edit_message_text(text=f'Вы сдали тест на :{int(float(base["Итого баллов?"][iDM]) * 100 / 3)}%. \n Теперь вы можете приступить к выполнению домашнего задания.',
+                                               chat_id=call.message.chat.id, message_id=call.message.message_id)
                 for i in range(1, len(base)):
                     if base['Группа'][i] == 'Преподаватель':
                         await botMes.send_message(base['user_ID'][i],
                                          text=f"Ученик {base['Участники курса'][iDM]} прошел тест с баллом {int(float(base['Итого баллов?'][iDM]) * 100 / 3)}%.")
             # Если тест не пройден, то
             else:
-                await botMes.send_message(call.message.chat.id,
-                                 f'Вы не прошли тест. Обратитесь к преподавателю.')
+                await botMes.edit_message_text(text=f'Вы не прошли тест. Обратитесь к преподавателю.',
+                                               chat_id=call.message.chat.id, message_id=call.message.message_id)
                 for i in range(1, len(base)):
                     if base['Группа'][i] == 'Преподаватель':
                         await botMes.send_message(base['user_ID'][i],
@@ -691,9 +703,9 @@ async def callback_query(callback: types.CallbackQuery):
         await update_parametr_google_sheets('Unit', base.index[-1] + 2, 2, 'Преподаватель')
         await botMes.send_message(call.message.chat.id, 'Отлично! Давайте приступим к работе!')
         await botMes.send_message(call.message.chat.id, 'По мере прохождения учебного блока, я буду писать вам о том, кто из учеников уже ознакомился с видео, кто и на какой балл прошел тест,'
-                                               'пересылать домашнее задание учеников. В любое время вы можете написать мне, и я передам сообщение всем ученикам персонально. '
+                                               'пересылать домашнее задание учеников. \nВ любое время вы можете написать мне, и я передам сообщение всем ученикам персонально. '
                                                'Для этого воспользуйтесь тегом /message Укажате номер группы, которой нужно отправить сообщение, и текст сообщения. '
-                                               'Если вы хотите вспомнить, какие теги за что отвечают, то воспользуйтесь тегом /help\n '
+                                               '\nЕсли вы хотите вспомнить, какие теги за что отвечают, то воспользуйтесь тегом /help\n '
                                                'Желаю плодотворной работы!')
 
 
